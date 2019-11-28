@@ -25,26 +25,26 @@ export class CpxFile {
     const buffer = SmartBuffer.fromBuffer(src)
     this.signature = buffer.readBuffer(4)
     if (this.getVersion() === CpxVersion.CpxVersion2) {
-      const num = buffer.readInt32BE()
+      const num = buffer.readInt32LE()
       for (let i = 0; i <= num; i++) {
-        this.unknownInt32s.push(buffer.readInt32BE())
+        this.unknownInt32s.push(buffer.readInt32LE())
       }
     }
     this.campaignNameBuffer = buffer.readBuffer(256)
-    const num2 = buffer.readInt32BE() - 1
+    const num2 = buffer.readInt32LE() - 1
     for (let i = 0; i <= num2; i++) {
-      const count = buffer.readInt32BE()
-      const num3 = buffer.readInt32BE()
+      const count = buffer.readInt32LE()
+      const num3 = buffer.readInt32LE()
       switch (this.getVersion()) {
         case CpxVersion.CpxVersion1:
           this.scenarioNames.push(buffer.readBuffer(255))
           this.scenarioNamesWithExtension.push(buffer.readBuffer(257))
           break
         case CpxVersion.CpxVersion2: {
-          let count2 = buffer.readInt16BE()
-          buffer.readInt16BE()
+          let count2 = buffer.readInt16LE()
+          buffer.readInt16LE()
           this.scenarioNames.push(buffer.readBuffer(count2))
-          count2 = buffer.readInt16BE()
+          count2 = buffer.readInt16LE()
           this.scenarioNamesWithExtension.push(buffer.readBuffer(count2))
           break
         }

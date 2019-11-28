@@ -1,9 +1,10 @@
 import {writeFile} from 'fs-extra'
 import {SmartBuffer} from 'smart-buffer'
-import {deflateSync, inflateSync} from 'zlib'
+import {deflateSync, inflateRawSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
 import {convert, FakeEncoding} from './func'
 import {BITMAPDIB, Condition, Effect, Player, PlayerMisc, Resource, RGB, Terrain, Trigger, Unit} from './player'
+import * as iconv from 'iconv-lite'
 
 export class ScxFile {
   public encoding = new FakeEncoding()
@@ -72,115 +73,115 @@ export class ScxFile {
     const buffer = SmartBuffer.fromBuffer(scx)
     this.version = buffer.readBuffer(4)
     buffer.readBuffer(4)
-    this.formatVersion = buffer.readInt32BE()
-    this.lastSave = buffer.readInt32BE()
-    this.instructionBuffer = buffer.readBuffer(buffer.readInt32BE())
+    this.formatVersion = buffer.readInt32LE()
+    this.lastSave = buffer.readInt32LE()
+    this.instructionBuffer = buffer.readBuffer(buffer.readInt32LE())
     buffer.readBuffer(4)
-    this.playerCount = buffer.readInt32BE()
+    this.playerCount = buffer.readInt32LE()
     if (this.formatVersion === 3) {
       buffer.readBuffer(8)
-      const num = buffer.readInt32BE()
+      const num = buffer.readInt32LE()
       for (let i = 0; i < num; i++) {
-        this.unknownInt32s.push(buffer.readInt32BE())
+        this.unknownInt32s.push(buffer.readInt32LE())
       }
     }
+    const compressed = buffer.readBuffer()
+    const input = SmartBuffer.fromBuffer(inflateRawSync(compressed))
 
-    const input = SmartBuffer.fromBuffer(inflateSync(buffer.readBuffer()))
-
-    this.nextUid = input.readInt32BE()
-    this.version2 = input.readFloatBE()
+    this.nextUid = input.readInt32LE()
+    this.version2 = input.readFloatLE()
     for (let i = 0; i < 16; i++) {
       const player = new Player(this)
       player.nameBuffer = input.readBuffer(256)
       this.players.push(player)
     }
     for (let i = 0; i < 16; i++) {
-      this.players[i].stringTableName = input.readInt32BE()
+      this.players[i].stringTableName = input.readInt32LE()
     }
     for (let i = 0; i < 16; i++) {
-      this.players[i].isActive = input.readInt32BE()
-      this.players[i].isHuman = input.readInt32BE()
-      this.players[i].civilization = input.readInt32BE()
+      this.players[i].isActive = input.readInt32LE()
+      this.players[i].isHuman = input.readInt32LE()
+      this.players[i].civilization = input.readInt32LE()
       input.readBuffer(4)
     }
     input.readBuffer(9)
-    this.originalFilenameBuffer = input.readBuffer(input.readInt16BE())
+    this.originalFilenameBuffer = input.readBuffer(input.readInt16LE())
     const num5 = (this.getVersion() >= ScxVersion.Version122) ? 5 : 4
     for (let i = 0; i <= num5; i++) {
-      this.stringTableInfos.push(input.readInt32BE())
+      this.stringTableInfos.push(input.readInt32LE())
     }
-    const num6 = (this.getVersion() > ScxVersion.Version122) ? 9 : 8
+    const num6 = (this.getVersion() >= ScxVersion.Version122) ? 9 : 8
     for (let i = 0; i <= num6; i++) {
-      this.stringInfos.push(input.readBuffer(input.readInt16BE()))
+      this.stringInfos.push(input.readBuffer(input.readInt16LE()))
     }
-    this.hasBitmap = input.readInt32BE()
-    this.bitMapX = input.readInt32BE()
-    this.bitMapY = input.readInt32BE()
+    this.hasBitmap = input.readInt32LE()
+    this.bitMapX = input.readInt32LE()
+    this.bitMapY = input.readInt32LE()
     input.readBuffer(2)
     if (this.bitMapX > 0 && this.bitMapY > 0) {
       this.bitmap = new BITMAPDIB()
-      this.bitmap.biSize = input.readInt32BE()
-      this.bitmap.biWidth = input.readInt32BE()
-      this.bitmap.biHeight = input.readInt32BE()
-      this.bitmap.biPlanes = input.readInt16BE()
-      this.bitmap.biBitCount = input.readInt16BE()
-      this.bitmap.biCompression = input.readInt32BE()
-      this.bitmap.biSizeImage = input.readInt32BE()
-      this.bitmap.biXPelsPerMeter = input.readInt32BE()
-      this.bitmap.biYPelsPerMeter = input.readInt32BE()
-      this.bitmap.biClrUsed = input.readInt32BE()
-      this.bitmap.biClrImportant = input.readInt32BE()
-    }
-    for (let i = 0; i <= 255; i++) {
-      const rgb = new RGB()
-      rgb.red = input.readInt8()
-      rgb.green = input.readInt8()
-      rgb.blue = input.readInt8()
-      input.readBuffer(1)
-      this.bitmap.colors.push(rgb)
-      this.bitmap.imageData = input.readBuffer((~~((this.bitMapX - 1) / 4 + 1) * 4 * this.bitMapY))
+      this.bitmap.biSize = input.readInt32LE()
+      this.bitmap.biWidth = input.readInt32LE()
+      this.bitmap.biHeight = input.readInt32LE()
+      this.bitmap.biPlanes = input.readInt16LE()
+      this.bitmap.biBitCount = input.readInt16LE()
+      this.bitmap.biCompression = input.readInt32LE()
+      this.bitmap.biSizeImage = input.readInt32LE()
+      this.bitmap.biXPelsPerMeter = input.readInt32LE()
+      this.bitmap.biYPelsPerMeter = input.readInt32LE()
+      this.bitmap.biClrUsed = input.readInt32LE()
+      this.bitmap.biClrImportant = input.readInt32LE()
+      for (let i = 0; i <= 255; i++) {
+        const rgb = new RGB()
+        rgb.red = input.readInt8()
+        rgb.green = input.readInt8()
+        rgb.blue = input.readInt8()
+        input.readBuffer(1)
+        this.bitmap.colors.push(rgb)
+        this.bitmap.imageData = input.readBuffer((~~((this.bitMapX - 1) / 4 + 1) * 4 * this.bitMapY))
+      }
     }
     for (let i = 0; i <= 31; i++) {
-      input.readBuffer(input.readInt16BE())
+      input.readBuffer(input.readInt16LE())
     }
     for (let i = 0; i <= 15; i++) {
-      this.players[i].aiBuffer = input.readBuffer(input.readInt16BE())
+      this.players[i].aiBuffer = input.readBuffer(input.readInt16LE())
     }
     for (let i = 0; i <= 15; i++) {
       input.readBuffer(8)
-      this.players[i].aiFile = input.readBuffer(input.readInt32BE())
+      this.players[i].aiFile = input.readBuffer(input.readInt32LE())
     }
     for (let i = 0; i <= 15; i++) {
       this.players[i].personality = input.readInt8()
     }
-    input.readInt32BE()
+    input.readInt32LE()
     for (let i = 0; i <= 15; i++) {
-      this.players[i].gold = input.readInt32BE()
-      this.players[i].wood = input.readInt32BE()
-      this.players[i].food = input.readInt32BE()
-      this.players[i].stone = input.readInt32BE()
-      this.players[i].orex = input.readInt32BE()
-      input.readInt32BE()
+      this.players[i].gold = input.readInt32LE()
+      this.players[i].wood = input.readInt32LE()
+      this.players[i].food = input.readInt32LE()
+      this.players[i].stone = input.readInt32LE()
+      this.players[i].orex = input.readInt32LE()
+      input.readInt32LE()
       if (this.getVersion() > ScxVersion.Version124) {
-        this.players[i].playerNumber = input.readInt32BE()
+        this.players[i].playerNumber = input.readInt32LE()
       }
     }
-    input.readInt32BE()
-    this.conquest = input.readBigInt64BE()
-    this.relics = input.readBigInt64BE()
-    this.explored = input.readBigInt64BE()
-    this.allMustMeet = input.readInt32BE()
-    this.mode = input.readInt32BE()
-    this.score = input.readInt32BE()
-    this.time = input.readInt32BE()
+    input.readInt32LE()
+    this.conquest = input.readBigInt64LE()
+    this.relics = input.readBigInt64LE()
+    this.explored = input.readBigInt64LE()
+    this.allMustMeet = input.readInt32LE()
+    this.mode = input.readInt32LE()
+    this.score = input.readInt32LE()
+    this.time = input.readInt32LE()
     for (let i = 0; i <= 15; i++) {
       for (let j = 0; j <= 15; j++) {
-        this.players[i].diplomacies.push(input.readInt32BE())
+        this.players[i].diplomacies.push(input.readInt32LE())
       }
     }
     input.readBuffer(11524)
     for (let i = 0; i <= 15; i++) {
-      this.players[i].alliedVictory = input.readInt32BE()
+      this.players[i].alliedVictory = input.readInt32LE()
     }
     if (this.getVersion() >= ScxVersion.Version123) {
       this.lockTeams = input.readInt8()
@@ -188,164 +189,169 @@ export class ScxFile {
       this.randomStartPoints = input.readInt8()
       this.maxTeams = input.readInt8()
     }
-    for (let i = 0; i <= 15; i++) input.readInt32BE()
+    for (let i = 0; i <= 15; i++) input.readInt32LE()
     for (let i = 0; i <= 15; i++) {
       for (let j = 0; j <= 29; j++) {
-        this.players[i].disabledTechs.push(input.readInt32BE())
+        this.players[i].disabledTechs.push(input.readInt32LE())
       }
     }
-    for (let i = 0; i <= 15; i++) input.readInt32BE()
+    for (let i = 0; i <= 15; i++) input.readInt32LE()
     for (let i = 0; i <= 15; i++) {
       for (let j = 0; j <= 29; j++) {
-        this.players[i].disabledUnits.push(input.readInt32BE())
+        this.players[i].disabledUnits.push(input.readInt32LE())
       }
     }
-    for (let i = 0; i <= 15; i++) input.readInt32BE()
+    for (let i = 0; i <= 15; i++) input.readInt32LE()
     for (let i = 0; i <= 15; i++) {
       const num24 = this.getVersion() >= ScxVersion.Version126 ? 29 : 19
       for (let j = 0; j <= num24; j++) {
-        this.players[i].disabledBuildings.push(input.readInt32BE())
+        this.players[i].disabledBuildings.push(input.readInt32LE())
       }
     }
     input.readBuffer(8)
-    this.allTechs = input.readInt32BE()
+    this.allTechs = input.readInt32LE()
     for (let i = 0; i <= 15; i++) {
-      this.players[i].startAge = input.readInt32BE() - (this.getVersion() >= ScxVersion.Version126 ? 2 : 0)
+      this.players[i].startAge = input.readInt32LE() - (this.getVersion() >= ScxVersion.Version126 ? 2 : 0)
     }
-    input.readInt32BE()
-    this.cameraX = input.readInt32BE()
-    this.cameraY = input.readInt32BE()
+    input.readInt32LE()
+    this.cameraX = input.readInt32LE()
+    this.cameraY = input.readInt32LE()
     if (this.getVersion() >= ScxVersion.Version122) {
-      this.mapType = input.readInt32BE()
+      this.mapType = input.readInt32LE()
     }
     if (this.getVersion() > ScxVersion.Version124) {
       input.readBuffer(16)
     }
-    this.mapX = input.readInt32BE()
-    this.mapY = input.readInt32BE()
+    this.mapX = input.readInt32LE()
+    this.mapY = input.readInt32LE()
     this.map = []
     for (let i = 0; i <= this.mapX - 1; i++) {
       this.map[i] = []
       for (let j = 0; j <= this.mapY - 1; j++) {
         const terrain = new Terrain()
         terrain.id = input.readInt8()
-        terrain.elevation = input.readUInt16BE()
+        terrain.elevation = input.readUInt16LE()
       }
     }
     input.readBuffer(4)
     for (let i = 0; i <= 7; i++) {
       const resource = new Resource()
-      resource.food = input.readFloatBE()
-      resource.wood = input.readFloatBE()
-      resource.gold = input.readFloatBE()
-      resource.stone = input.readFloatBE()
-      resource.orex = input.readFloatBE()
+      resource.food = input.readFloatLE()
+      resource.wood = input.readFloatLE()
+      resource.gold = input.readFloatLE()
+      resource.stone = input.readFloatLE()
+      resource.orex = input.readFloatLE()
       this.resources.push(resource)
       input.readBuffer(4)
       if (this.getVersion() >= ScxVersion.Version122) {
-        resource.populationLimit = input.readFloatBE()
+        resource.populationLimit = input.readFloatLE()
       }
     }
     for (let i = 0; i <= 7; i++) {
       const unit = []
       this.units.push(unit)
-      const num30 = input.readInt32BE()
+      const num30 = input.readInt32LE()
       for (let j = 0; j <= num30 - 1; j++) {
         const e = new Unit()
-        e.posX = input.readFloatBE()
-        e.posY = input.readFloatBE()
-        e.posZ = input.readFloatBE()
-        e.id = input.readInt32BE()
-        e.unitId = input.readInt16BE()
+        e.posX = input.readFloatLE()
+        e.posY = input.readFloatLE()
+        e.posZ = input.readFloatLE()
+        e.id = input.readInt32LE()
+        e.unitId = input.readInt16LE()
         e.state = input.readInt8()
-        e.rotation = input.readFloatBE()
-        e.frame = input.readInt16BE()
-        e.garrison = input.readInt32BE()
+        e.rotation = input.readFloatLE()
+        e.frame = input.readInt16LE()
+        e.garrison = input.readInt32LE()
         unit.push(e)
       }
     }
-    input.readInt32BE()
-    for (let i = 0; i <= 8; i++) {
+    input.readInt32LE()
+    for (let i = 0; i <= 7; i++) {
       const playerMisc = new PlayerMisc(this)
       this.misc.push(playerMisc)
-      playerMisc.nameBuffer = input.readBuffer(input.readInt16BE())
-      playerMisc.cameraX = input.readFloatBE()
-      playerMisc.cameraY = input.readFloatBE()
-      input.readInt32BE()
+      const nameLength = input.readInt16LE()
+      playerMisc.nameBuffer = input.readBuffer(nameLength)
+      console.log(iconv.decode(playerMisc.nameBuffer, 'gbk'))
+      playerMisc.cameraX = input.readFloatLE()
+      playerMisc.cameraY = input.readFloatLE()
+      input.readInt32LE()
       playerMisc.alliedVictory = input.readInt8()
       input.readBuffer(2)
       for (let j = 0; j <= 8; j++) {
         playerMisc.diplomacy.push(input.readInt8())
       }
       for (let j = 0; j <= 8; j++) {
-        playerMisc.diplomacy2.push(input.readInt8())
+        playerMisc.diplomacy2.push(input.readInt32LE())
       }
-      playerMisc.color = input.readInt32BE()
-      input.readBuffer(input.readFloatBE() === 2 ? 8 : 0)
+      playerMisc.color = input.readInt32LE()
+      console.log(playerMisc.color)
+      const readCount = (input.readFloatLE() === 2 ? 8 : 0) + input.readInt16LE() * 44 + 11
+      console.log(readCount)
+      input.readBuffer(readCount)
     }
     input.readBuffer(9)
-    const num35 = input.readInt32BE() - 1
+    const num35 = input.readInt32LE() - 1
     for (let i = 0; i <= num35; i++) {
       const trigger = new Trigger(this)
-      trigger.isEnabled = input.readInt32BE()
-      trigger.isLooping = input.readInt32BE()
+      trigger.isEnabled = input.readInt32LE()
+      trigger.isLooping = input.readInt32LE()
       this.triggers.push(trigger)
       input.readBuffer(1)
       trigger.isObjective = input.readInt8()
-      trigger.descriptionOrder = input.readInt32BE()
+      trigger.descriptionOrder = input.readInt32LE()
       input.readBuffer(4)
-      trigger.descriptionBuffer = input.readBuffer(input.readInt32BE())
-      trigger.nameBuffer = input.readBuffer(input.readInt32BE())
-      const num37 = input.readInt32BE() - 1
+      trigger.descriptionBuffer = input.readBuffer(input.readInt32LE())
+      trigger.nameBuffer = input.readBuffer(input.readInt32LE())
+      const num37 = input.readInt32LE() - 1
       for (let j = 0; j <= num37; j++) {
         const effect = new Effect(this)
-        effect.type = input.readInt32BE()
+        effect.type = input.readInt32LE()
         trigger.effects.push(effect)
-        const num39 = input.readInt32BE() - 1
+        const num39 = input.readInt32LE() - 1
         for (let k = 0; k <= num39; k++) {
-          effect.fields.push(input.readInt32BE())
+          effect.fields.push(input.readInt32LE())
         }
-        effect.textBuffer = input.readBuffer(input.readInt32BE())
-        effect.soundFileBuffer = input.readBuffer(input.readInt32BE())
+        effect.textBuffer = input.readBuffer(input.readInt32LE())
+        effect.soundFileBuffer = input.readBuffer(input.readInt32LE())
         if (effect.fields.length > 4) {
           const num41 = effect.fields[EffectField.NumSelected] - 1
           for (let k = 0; k <= num41; k++) {
-            effect.unitIds.push(input.readInt32BE())
+            effect.unitIds.push(input.readInt32LE())
           }
         }
       }
       const num43 = trigger.effects.length - 1
       for (let j = 0; j <= num43; j++) {
-        trigger.effectOrder.push(input.readInt32BE())
+        trigger.effectOrder.push(input.readInt32LE())
       }
-      const num45 = input.readInt32BE() - 1
+      const num45 = input.readInt32LE() - 1
       for (let j = 0; j <= num45; j++) {
         const condition = new Condition()
-        condition.type = input.readInt32BE()
+        condition.type = input.readInt32LE()
         trigger.conditions.push(condition)
-        const num47 = input.readInt32BE() - 1
+        const num47 = input.readInt32LE() - 1
         for (let k = 0; k <= num47; k++) {
-          condition.getFields().push(input.readInt32BE())
+          condition.getFields().push(input.readInt32LE())
         }
       }
       const num49 = trigger.conditions.length - 1
       for (let j = 0; j <= num49; j++) {
-        trigger.conditionOrder.push(input.readInt32BE())
+        trigger.conditionOrder.push(input.readInt32LE())
       }
     }
     const num51 = this.triggers.length - 1
     for (let i = 0; i <= num51; i++) {
-      this.triggerOrder.push(input.readInt32BE())
+      this.triggerOrder.push(input.readInt32LE())
     }
-    this.hasAiFile = input.readInt32BE()
-    this.needsWorkaround = input.readInt32BE()
+    this.hasAiFile = input.readInt32LE()
+    this.needsWorkaround = input.readInt32LE()
     if (this.needsWorkaround === 1) {
       this.workaroundBytes = input.readBuffer(396)
     }
     if (this.hasAiFile === 1) {
-      const num53 = input.readInt32BE() - 1
+      const num53 = input.readInt32LE() - 1
       for (let i = 0; i <= num53; i++) {
-        this.aiFiles.set(input.readBuffer(input.readInt32BE()), input.readBuffer(input.readInt32BE()))
+        this.aiFiles.set(input.readBuffer(input.readInt32LE()), input.readBuffer(input.readInt32LE()))
       }
     }
   }
