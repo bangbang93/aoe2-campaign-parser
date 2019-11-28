@@ -1,14 +1,10 @@
 import {createWriteStream} from 'fs'
 import * as GetStream from 'get-stream'
-import {Readable, Writable} from 'stream'
-import {createDeflate, createInflate} from 'zlib'
+import {SmartBuffer} from 'smart-buffer'
+import {deflateSync, inflateSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
-import {
-  convert, FakeEncoding, readByte, readFloat, readInt16, readInt32, readInt64, readUInt16, writeByte, writeFloat,
-  writeInt16, writeInt32, writeInt64, writeUInt16,
-} from './func'
+import {convert, FakeEncoding} from './func'
 import {BITMAPDIB, Condition, Effect, Player, PlayerMisc, Resource, RGB, Terrain, Trigger, Unit} from './player'
-import MemoryStream = require('memorystream')
 
 export class ScxFile {
   public encoding = new FakeEncoding()
@@ -73,558 +69,559 @@ export class ScxFile {
     this.originalFilenameBuffer = this.encoding.getBytes(value)
   }
 
-  constructor(stream: Readable) {
-    this.version = stream.read(4)
-    stream.read(4)
-    this.formatVersion = readInt32(stream)
-    this.lastSave = readInt32(stream)
-    this.instructionBuffer = stream.read(readInt32(stream))
-    stream.read(4)
-    this.playerCount = readInt32(stream)
+  constructor(scx: Buffer) {
+    const buffer = SmartBuffer.fromBuffer(scx)
+    this.version = buffer.readBuffer(4)
+    buffer.readBuffer(4)
+    this.formatVersion = buffer.readInt32BE()
+    this.lastSave = buffer.readInt32BE()
+    this.instructionBuffer = buffer.readBuffer(buffer.readInt32BE())
+    buffer.readBuffer(4)
+    this.playerCount = buffer.readInt32BE()
     if (this.formatVersion === 3) {
-      stream.read(8)
-      const num = readInt32(stream)
+      buffer.readBuffer(8)
+      const num = buffer.readInt32BE()
       for (let i = 0; i < num; i++) {
-        this.unknownInt32s.push(readInt32(stream))
+        this.unknownInt32s.push(buffer.readInt32BE())
       }
     }
 
-    const input = createInflate()
-    stream.pipe(input)
+    const input = SmartBuffer.fromBuffer(inflateSync(buffer.readBuffer()))
 
-    this.nextUid = readInt32(input)
-    this.version2 = readFloat(input)
+    this.nextUid = input.readInt32BE()
+    this.version2 = input.readFloatBE()
     for (let i = 0; i < 16; i++) {
       const player = new Player(this)
-      player.name = input.read(256)
+      player.nameBuffer = input.readBuffer(256)
       this.players.push(player)
     }
     for (let i = 0; i < 16; i++) {
-      this.players[i].stringTableName = readInt32(input)
+      this.players[i].stringTableName = input.readInt32BE()
     }
     for (let i = 0; i < 16; i++) {
-      this.players[i].isActive = readInt32(input)
-      this.players[i].isHuman = readInt32(input)
-      this.players[i].civilization = readInt32(input)
-      input.read(4)
+      this.players[i].isActive = input.readInt32BE()
+      this.players[i].isHuman = input.readInt32BE()
+      this.players[i].civilization = input.readInt32BE()
+      input.readBuffer(4)
     }
-    input.read(9)
-    this.originalFilenameBuffer = input.read(readInt16(input))
+    input.readBuffer(9)
+    this.originalFilenameBuffer = input.readBuffer(input.readInt16BE())
     const num5 = (this.getVersion() >= ScxVersion.Version122) ? 5 : 4
     for (let i = 0; i <= num5; i++) {
-      this.stringTableInfos.push(readInt32(input))
+      this.stringTableInfos.push(input.readInt32BE())
     }
     const num6 = (this.getVersion() > ScxVersion.Version122) ? 9 : 8
     for (let i = 0; i <= num6; i++) {
-      this.stringInfos.push(input.read(readInt16(input)))
+      this.stringInfos.push(input.readBuffer(input.readInt16BE()))
     }
-    this.hasBitmap = readInt32(input)
-    this.bitMapX = readInt32(input)
-    this.bitMapY = readInt32(input)
-    input.read(2)
+    this.hasBitmap = input.readInt32BE()
+    this.bitMapX = input.readInt32BE()
+    this.bitMapY = input.readInt32BE()
+    input.readBuffer(2)
     if (this.bitMapX > 0 && this.bitMapY > 0) {
       this.bitmap = new BITMAPDIB()
-      this.bitmap.biSize = readInt32(input)
-      this.bitmap.biWidth = readInt32(input)
-      this.bitmap.biHeight = readInt32(input)
-      this.bitmap.biPlanes = readInt16(input)
-      this.bitmap.biBitCount = readInt16(input)
-      this.bitmap.biCompression = readInt32(input)
-      this.bitmap.biSizeImage = readInt32(input)
-      this.bitmap.biXPelsPerMeter = readInt32(input)
-      this.bitmap.biYPelsPerMeter = readInt32(input)
-      this.bitmap.biClrUsed = readInt32(input)
-      this.bitmap.biClrImportant = readInt32(input)
+      this.bitmap.biSize = input.readInt32BE()
+      this.bitmap.biWidth = input.readInt32BE()
+      this.bitmap.biHeight = input.readInt32BE()
+      this.bitmap.biPlanes = input.readInt16BE()
+      this.bitmap.biBitCount = input.readInt16BE()
+      this.bitmap.biCompression = input.readInt32BE()
+      this.bitmap.biSizeImage = input.readInt32BE()
+      this.bitmap.biXPelsPerMeter = input.readInt32BE()
+      this.bitmap.biYPelsPerMeter = input.readInt32BE()
+      this.bitmap.biClrUsed = input.readInt32BE()
+      this.bitmap.biClrImportant = input.readInt32BE()
     }
     for (let i = 0; i <= 255; i++) {
       const rgb = new RGB()
-      rgb.red = readByte(input)
-      rgb.green = readByte(input)
-      rgb.blue = readByte(input)
-      input.read(1)
+      rgb.red = input.readInt8()
+      rgb.green = input.readInt8()
+      rgb.blue = input.readInt8()
+      input.readBuffer(1)
       this.bitmap.colors.push(rgb)
-      this.bitmap.imageData = input.read((~~((this.bitMapX - 1) / 4 + 1) * 4 * this.bitMapY))
+      this.bitmap.imageData = input.readBuffer((~~((this.bitMapX - 1) / 4 + 1) * 4 * this.bitMapY))
     }
     for (let i = 0; i <= 31; i++) {
-      input.read(readInt16(input))
+      input.readBuffer(input.readInt16BE())
     }
     for (let i = 0; i <= 15; i++) {
-      this.players[i].aiBuffer = input.read(readInt16(input))
+      this.players[i].aiBuffer = input.readBuffer(input.readInt16BE())
     }
     for (let i = 0; i <= 15; i++) {
-      input.read(8)
-      this.players[i].aiFile = input.read(readInt32(input))
+      input.readBuffer(8)
+      this.players[i].aiFile = input.readBuffer(input.readInt32BE())
     }
     for (let i = 0; i <= 15; i++) {
-      this.players[i].personality = readByte(input)
+      this.players[i].personality = input.readInt8()
     }
-    readInt32(input)
+    input.readInt32BE()
     for (let i = 0; i <= 15; i++) {
-      this.players[i].gold = readInt32(input)
-      this.players[i].wood = readInt32(input)
-      this.players[i].food = readInt32(input)
-      this.players[i].stone = readInt32(input)
-      this.players[i].orex = readInt32(input)
-      readInt32(input)
+      this.players[i].gold = input.readInt32BE()
+      this.players[i].wood = input.readInt32BE()
+      this.players[i].food = input.readInt32BE()
+      this.players[i].stone = input.readInt32BE()
+      this.players[i].orex = input.readInt32BE()
+      input.readInt32BE()
       if (this.getVersion() > ScxVersion.Version124) {
-        this.players[i].playerNumber = readInt32(input)
+        this.players[i].playerNumber = input.readInt32BE()
       }
     }
-    readInt32(input)
-    this.conquest = readInt64(input)
-    this.relics = readInt64(input)
-    this.explored = readInt64(input)
-    this.allMustMeet = readInt32(input)
-    this.mode = readInt32(input)
-    this.score = readInt32(input)
-    this.time = readInt32(input)
+    input.readInt32BE()
+    this.conquest = input.readBigInt64BE()
+    this.relics = input.readBigInt64BE()
+    this.explored = input.readBigInt64BE()
+    this.allMustMeet = input.readInt32BE()
+    this.mode = input.readInt32BE()
+    this.score = input.readInt32BE()
+    this.time = input.readInt32BE()
     for (let i = 0; i <= 15; i++) {
       for (let j = 0; j <= 15; j++) {
-        this.players[i].diplomacies.push(readInt32(input))
+        this.players[i].diplomacies.push(input.readInt32BE())
       }
     }
-    input.read(11524)
+    input.readBuffer(11524)
     for (let i = 0; i <= 15; i++) {
-      this.players[i].alliedVictory = readInt32(input)
+      this.players[i].alliedVictory = input.readInt32BE()
     }
     if (this.getVersion() >= ScxVersion.Version123) {
-      this.lockTeams = readByte(input)
-      this.playerChooseTeams = readByte(input)
-      this.randomStartPoints = readByte(input)
-      this.maxTeams = readByte(input)
+      this.lockTeams = input.readInt8()
+      this.playerChooseTeams = input.readInt8()
+      this.randomStartPoints = input.readInt8()
+      this.maxTeams = input.readInt8()
     }
-    for (let i = 0; i <= 15; i++) readInt32(input)
+    for (let i = 0; i <= 15; i++) input.readInt32BE()
     for (let i = 0; i <= 15; i++) {
       for (let j = 0; j <= 29; j++) {
-        this.players[i].disabledTechs.push(readInt32(input))
+        this.players[i].disabledTechs.push(input.readInt32BE())
       }
     }
-    for (let i = 0; i <= 15; i++) readInt32(input)
+    for (let i = 0; i <= 15; i++) input.readInt32BE()
     for (let i = 0; i <= 15; i++) {
       for (let j = 0; j <= 29; j++) {
-        this.players[i].disabledUnits.push(readInt32(input))
+        this.players[i].disabledUnits.push(input.readInt32BE())
       }
     }
-    for (let i = 0; i <= 15; i++) readInt32(input)
+    for (let i = 0; i <= 15; i++) input.readInt32BE()
     for (let i = 0; i <= 15; i++) {
       const num24 = this.getVersion() >= ScxVersion.Version126 ? 29 : 19
       for (let j = 0; j <= num24; j++) {
-        this.players[i].disabledBuildings.push(readInt32(input))
+        this.players[i].disabledBuildings.push(input.readInt32BE())
       }
     }
-    input.read(8)
-    this.allTechs = readInt32(input)
+    input.readBuffer(8)
+    this.allTechs = input.readInt32BE()
     for (let i = 0; i <= 15; i++) {
-      this.players[i].startAge = readInt32(input) - (this.getVersion() >= ScxVersion.Version126 ? 2 : 0)
+      this.players[i].startAge = input.readInt32BE() - (this.getVersion() >= ScxVersion.Version126 ? 2 : 0)
     }
-    readInt32(input)
-    this.cameraX = readInt32(input)
-    this.cameraY = readInt32(input)
+    input.readInt32BE()
+    this.cameraX = input.readInt32BE()
+    this.cameraY = input.readInt32BE()
     if (this.getVersion() >= ScxVersion.Version122) {
-      this.mapType = readInt32(input)
+      this.mapType = input.readInt32BE()
     }
     if (this.getVersion() > ScxVersion.Version124) {
-      input.read(16)
+      input.readBuffer(16)
     }
-    this.mapX = readInt32(input)
-    this.mapY = readInt32(input)
+    this.mapX = input.readInt32BE()
+    this.mapY = input.readInt32BE()
     this.map = []
     for (let i = 0; i <= this.mapX - 1; i++) {
       this.map[i] = []
       for (let j = 0; j <= this.mapY - 1; j++) {
         const terrain = new Terrain()
-        terrain.id = readByte(input)
-        terrain.elevation = readUInt16(input)
+        terrain.id = input.readInt8()
+        terrain.elevation = input.readUInt16BE()
       }
     }
-    input.read(4)
+    input.readBuffer(4)
     for (let i = 0; i <= 7; i++) {
       const resource = new Resource()
-      resource.food = readFloat(input)
-      resource.wood = readFloat(input)
-      resource.gold = readFloat(input)
-      resource.stone = readFloat(input)
-      resource.orex = readFloat(input)
+      resource.food = input.readFloatBE()
+      resource.wood = input.readFloatBE()
+      resource.gold = input.readFloatBE()
+      resource.stone = input.readFloatBE()
+      resource.orex = input.readFloatBE()
       this.resources.push(resource)
-      input.read(4)
+      input.readBuffer(4)
       if (this.getVersion() >= ScxVersion.Version122) {
-        resource.populationLimit = readFloat(input)
+        resource.populationLimit = input.readFloatBE()
       }
     }
     for (let i = 0; i <= 7; i++) {
       const unit = []
       this.units.push(unit)
-      const num30 = readInt32(input)
+      const num30 = input.readInt32BE()
       for (let j = 0; j <= num30 - 1; j++) {
         const e = new Unit()
-        e.posX = readFloat(input)
-        e.posY = readFloat(input)
-        e.posZ = readFloat(input)
-        e.id = readInt32(input)
-        e.unitId = readInt16(input)
-        e.state = readByte(input)
-        e.rotation = readFloat(input)
-        e.frame = readInt16(input)
-        e.garrison = readInt32(input)
+        e.posX = input.readFloatBE()
+        e.posY = input.readFloatBE()
+        e.posZ = input.readFloatBE()
+        e.id = input.readInt32BE()
+        e.unitId = input.readInt16BE()
+        e.state = input.readInt8()
+        e.rotation = input.readFloatBE()
+        e.frame = input.readInt16BE()
+        e.garrison = input.readInt32BE()
         unit.push(e)
       }
     }
-    readInt32(input)
+    input.readInt32BE()
     for (let i = 0; i <= 8; i++) {
       const playerMisc = new PlayerMisc(this)
       this.misc.push(playerMisc)
-      playerMisc.nameBuffer = input.read(readInt16(input))
-      playerMisc.cameraX = readFloat(input)
-      playerMisc.cameraY = readFloat(input)
-      readInt32(input)
-      playerMisc.alliedVictory = readByte(input)
-      input.read(2)
+      playerMisc.nameBuffer = input.readBuffer(input.readInt16BE())
+      playerMisc.cameraX = input.readFloatBE()
+      playerMisc.cameraY = input.readFloatBE()
+      input.readInt32BE()
+      playerMisc.alliedVictory = input.readInt8()
+      input.readBuffer(2)
       for (let j = 0; j <= 8; j++) {
-        playerMisc.diplomacy.push(readByte(input))
+        playerMisc.diplomacy.push(input.readInt8())
       }
       for (let j = 0; j <= 8; j++) {
-        playerMisc.diplomacy2.push(readByte(input))
+        playerMisc.diplomacy2.push(input.readInt8())
       }
-      playerMisc.color = readInt32(input)
-      input.read(readFloat(input) === 2 ? 8 : 0)
+      playerMisc.color = input.readInt32BE()
+      input.readBuffer(input.readFloatBE() === 2 ? 8 : 0)
     }
-    input.read(9)
-    const num35 = readInt32(input) - 1
+    input.readBuffer(9)
+    const num35 = input.readInt32BE() - 1
     for (let i = 0; i <= num35; i++) {
       const trigger = new Trigger(this)
-      trigger.isEnabled = readInt32(input)
-      trigger.isLooping = readInt32(input)
+      trigger.isEnabled = input.readInt32BE()
+      trigger.isLooping = input.readInt32BE()
       this.triggers.push(trigger)
-      input.read(1)
-      trigger.isObjective = readByte(input)
-      trigger.descriptionOrder = readInt32(input)
-      input.read(4)
-      trigger.descriptionBuffer = input.read(readInt32(input))
-      trigger.nameBuffer = input.read(readInt32(input))
-      const num37 = readInt32(input) - 1
+      input.readBuffer(1)
+      trigger.isObjective = input.readInt8()
+      trigger.descriptionOrder = input.readInt32BE()
+      input.readBuffer(4)
+      trigger.descriptionBuffer = input.readBuffer(input.readInt32BE())
+      trigger.nameBuffer = input.readBuffer(input.readInt32BE())
+      const num37 = input.readInt32BE() - 1
       for (let j = 0; j <= num37; j++) {
         const effect = new Effect(this)
-        effect.type = readInt32(input)
+        effect.type = input.readInt32BE()
         trigger.effects.push(effect)
-        const num39 = readInt32(input) - 1
+        const num39 = input.readInt32BE() - 1
         for (let k = 0; k <= num39; k++) {
-          effect.fields.push(readInt32(input))
+          effect.fields.push(input.readInt32BE())
         }
-        effect.textBuffer = input.read(readInt32(input))
-        effect.soundFileBuffer = input.read(readInt32(input))
+        effect.textBuffer = input.readBuffer(input.readInt32BE())
+        effect.soundFileBuffer = input.readBuffer(input.readInt32BE())
         if (effect.fields.length > 4) {
           const num41 = effect.fields[EffectField.NumSelected] - 1
           for (let k = 0; k <= num41; k++) {
-            effect.unitIds.push(readInt32(input))
+            effect.unitIds.push(input.readInt32BE())
           }
         }
       }
       const num43 = trigger.effects.length - 1
       for (let j = 0; j <= num43; j++) {
-        trigger.effectOrder.push(readInt32(input))
+        trigger.effectOrder.push(input.readInt32BE())
       }
-      const num45 = readInt32(input) - 1
+      const num45 = input.readInt32BE() - 1
       for (let j = 0; j <= num45; j++) {
         const condition = new Condition()
-        condition.type = readInt32(input)
+        condition.type = input.readInt32BE()
         trigger.conditions.push(condition)
-        const num47 = readInt32(input) - 1
+        const num47 = input.readInt32BE() - 1
         for (let k = 0; k <= num47; k++) {
-          condition.getFields().push(readInt32(input))
+          condition.getFields().push(input.readInt32BE())
         }
       }
       const num49 = trigger.conditions.length - 1
       for (let j = 0; j <= num49; j++) {
-        trigger.conditionOrder.push(readInt32(input))
+        trigger.conditionOrder.push(input.readInt32BE())
       }
     }
     const num51 = this.triggers.length - 1
     for (let i = 0; i <= num51; i++) {
-      this.triggerOrder.push(readInt32(input))
+      this.triggerOrder.push(input.readInt32BE())
     }
-    this.hasAiFile = readInt32(input)
-    this.needsWorkaround = readInt32(input)
+    this.hasAiFile = input.readInt32BE()
+    this.needsWorkaround = input.readInt32BE()
     if (this.needsWorkaround === 1) {
-      this.workaroundBytes = input.read(396)
+      this.workaroundBytes = input.readBuffer(396)
     }
     if (this.hasAiFile === 1) {
-      const num53 = readInt32(input) - 1
+      const num53 = input.readInt32BE() - 1
       for (let i = 0; i <= num53; i++) {
-        this.aiFiles.set(input.read(readInt32(input)), input.read(readInt32(input)))
+        this.aiFiles.set(input.readBuffer(input.readInt32BE()), input.readBuffer(input.readInt32BE()))
       }
     }
   }
 
-  public getStream(): Readable {
-    const ms = new MemoryStream()
-    ms.write(this.version)
-    writeInt32(ms, Buffer.byteLength(this.instruction) + 20)
-    writeInt32(ms, this.formatVersion)
-    writeInt32(ms, this.lastSave)
-    this.writeString32(ms, this.instruction)
-    writeInt32(ms, 0)
-    writeInt32(ms, this.playerCount)
+  public getStream(): Buffer {
+    const buffer = SmartBuffer.fromSize(10 * 1024 * 1024)
+    buffer.writeBuffer(this.version)
+    buffer.writeInt32BE(Buffer.byteLength(this.instruction) + 20)
+    buffer.writeInt32BE(this.formatVersion)
+    buffer.writeInt32BE(this.lastSave)
+    this.writeString32(buffer, this.instruction)
+    buffer.writeInt32BE(0)
+    buffer.writeInt32BE(this.playerCount)
     if (this.formatVersion === 3) {
-      writeInt32(ms, 1000)
-      writeInt32(ms, 1)
-      writeInt32(ms, this.unknownInt32s.length)
+      buffer.writeInt32BE(1000)
+      buffer.writeInt32BE(1)
+      buffer.writeInt32BE(this.unknownInt32s.length)
       for (const unknownInt32 of this.unknownInt32s) {
-        writeInt32(ms, unknownInt32)
+        buffer.writeInt32BE(unknownInt32)
       }
     }
-    const dest = createDeflate().pipe(ms)
-    writeInt32(dest, this.nextUid)
-    writeFloat(dest, this.version2)
+    const dest = SmartBuffer.fromSize(10 * 1024 * 1024)
+    dest.writeInt32BE(this.nextUid)
+    dest.writeFloatBE(this.version2)
     for (const player of this.players) {
-      dest.write(this.getBytesFixed(player.name, 256))
+      dest.writeBuffer(this.getBytesFixed(player.name, 256))
     }
     for (const player of this.players) {
-      writeInt32(dest, player.stringTableName)
+      dest.writeInt32BE(player.stringTableName)
     }
     for (const player of this.players) {
-      writeInt32(dest, player.isActive)
-      writeInt32(dest, player.isHuman)
-      writeInt32(dest, player.civilization)
-      writeInt32(dest, 4)
+      dest.writeInt32BE(player.isActive)
+      dest.writeInt32BE(player.isHuman)
+      dest.writeInt32BE(player.civilization)
+      dest.writeInt32BE(4)
     }
-    writeInt32(dest, 1)
-    writeInt16(dest, 0)
-    writeFloat(dest, -1)
+    dest.writeInt32BE(1)
+    dest.writeInt16BE(0)
+    dest.writeFloatBE(-1)
     this.writeString16(dest, this.originalFilename)
     for (const stringTableInfo of this.stringTableInfos) {
-      writeInt32(dest, stringTableInfo)
+      dest.writeInt32BE(stringTableInfo)
     }
     for (const stringInfo of this.stringInfos) {
-      writeInt16(dest, stringInfo.length)
-      dest.write(stringInfo)
+      dest.writeInt16BE(stringInfo.length)
+      dest.writeBuffer(stringInfo)
     }
-    writeInt32(dest, this.hasBitmap)
-    writeInt32(dest, this.bitMapX)
-    writeInt32(dest, this.bitMapY)
-    writeInt16(dest, 1)
+    dest.writeInt32BE(this.hasBitmap)
+    dest.writeInt32BE(this.bitMapX)
+    dest.writeInt32BE(this.bitMapY)
+    dest.writeInt16BE(1)
     if (this.bitMapX > 0 && this.bitMapY > 0) {
-      writeInt32(dest, this.bitmap.biSize)
-      writeInt32(dest, this.bitmap.biWidth)
-      writeInt32(dest, this.bitmap.biHeight)
-      writeInt16(dest, this.bitmap.biPlanes)
-      writeInt16(dest, this.bitmap.biBitCount)
-      writeInt32(dest, this.bitmap.biCompression)
-      writeInt32(dest, this.bitmap.biSizeImage)
-      writeInt32(dest, this.bitmap.biXPelsPerMeter)
-      writeInt32(dest, this.bitmap.biYPelsPerMeter)
-      writeInt32(dest, this.bitmap.biClrUsed)
-      writeInt32(dest, this.bitmap.biClrImportant)
+      dest.writeInt32BE(this.bitmap.biSize)
+      dest.writeInt32BE(this.bitmap.biWidth)
+      dest.writeInt32BE(this.bitmap.biHeight)
+      dest.writeInt16BE(this.bitmap.biPlanes)
+      dest.writeInt16BE(this.bitmap.biBitCount)
+      dest.writeInt32BE(this.bitmap.biCompression)
+      dest.writeInt32BE(this.bitmap.biSizeImage)
+      dest.writeInt32BE(this.bitmap.biXPelsPerMeter)
+      dest.writeInt32BE(this.bitmap.biYPelsPerMeter)
+      dest.writeInt32BE(this.bitmap.biClrUsed)
+      dest.writeInt32BE(this.bitmap.biClrImportant)
       for (const color of this.bitmap.colors) {
-        dest.write(color.red)
-        dest.write(color.green)
-        dest.write(color.blue)
-        dest.write(0)
+        dest.writeInt8(color.red)
+        dest.writeInt8(color.green)
+        dest.writeInt8(color.blue)
+        dest.writeInt8(0)
       }
-      dest.write(this.bitmap.imageData)
+      dest.writeBuffer(this.bitmap.imageData)
     }
     for (let i = 0; i <= 31; i++) {
-      writeInt16(dest, 0)
+      dest.writeInt16BE(0)
     }
     for (const player of this.players) {
       this.writeString16(dest, player.ai)
     }
     for (const player of this.players) {
-      writeInt64(dest, 0n)
-      writeInt32(dest, player.aiFile.length)
-      dest.write(player.aiFile)
+      dest.writeBigInt64BE(0n)
+      dest.writeInt32BE(player.aiFile.length)
+      dest.writeBuffer(player.aiFile)
     }
     for (const player of this.players) {
-      dest.write(player.personality)
+      dest.writeInt8(player.personality)
     }
-    writeInt32(dest, -99)
+    dest.writeInt32BE(-99)
     for (const player of this.players) {
-      writeInt32(dest, player.gold)
-      writeInt32(dest, player.wood)
-      writeInt32(dest, player.food)
-      writeInt32(dest, player.stone)
-      writeInt32(dest, player.orex)
-      writeInt32(dest, 0)
+      dest.writeInt32BE(player.gold)
+      dest.writeInt32BE(player.wood)
+      dest.writeInt32BE(player.food)
+      dest.writeInt32BE(player.stone)
+      dest.writeInt32BE(player.orex)
+      dest.writeInt32BE(0)
       if (this.getVersion() > ScxVersion.Version124) {
-        writeInt32(dest, player.playerNumber)
+        dest.writeInt32BE(player.playerNumber)
       }
     }
-    writeInt32(dest, -99)
-    writeInt64(dest, this.conquest)
-    writeInt64(dest, this.relics)
-    writeInt64(dest, this.explored)
-    writeInt32(dest, this.allMustMeet)
-    writeInt32(dest, this.mode)
-    writeInt32(dest, this.score)
-    writeInt32(dest, this.time)
+    dest.writeInt32BE(-99)
+    dest.writeBigInt64BE(this.conquest)
+    dest.writeBigInt64BE(this.relics)
+    dest.writeBigInt64BE(this.explored)
+    dest.writeInt32BE(this.allMustMeet)
+    dest.writeInt32BE(this.mode)
+    dest.writeInt32BE(this.score)
+    dest.writeInt32BE(this.time)
     for (const player of this.players) {
       for (const diplomacy of player.diplomacies) {
-        writeInt32(dest, diplomacy)
+        dest.writeInt32BE(diplomacy)
       }
     }
     for (let i = 1; i <= 720; i++) {
-      dest.write(Buffer.alloc(16))
+      dest.writeBuffer(Buffer.alloc(16))
     }
-    writeInt32(dest, -99)
+    dest.writeInt32BE(-99)
     for (const player of this.players) {
-      writeInt32(dest, player.alliedVictory)
+      dest.writeInt32BE(player.alliedVictory)
     }
     if (this.getVersion() >= ScxVersion.Version123) {
-      dest.write(this.lockTeams)
-      dest.write(this.playerChooseTeams)
-      dest.write(this.randomStartPoints)
-      dest.write(this.maxTeams)
+      dest.writeInt8(this.lockTeams)
+      dest.writeInt8(this.playerChooseTeams)
+      dest.writeInt8(this.randomStartPoints)
+      dest.writeInt8(this.maxTeams)
     }
     for (const player of this.players) {
-      writeInt32(dest, player.disabledTechs.map((e) => e >= 0).length)
+      dest.writeInt32BE(player.disabledTechs.map((e) => e >= 0).length)
     }
     for (const player of this.players) {
       for (const disabledTech of player.disabledTechs) {
-        writeInt32(dest, disabledTech)
+        dest.writeInt32BE(disabledTech)
       }
     }
     for (const player of this.players) {
-      writeInt32(dest, player.disabledUnits.map((e) => e >= 0).length)
+      dest.writeInt32BE(player.disabledUnits.map((e) => e >= 0).length)
     }
     for (const player of this.players) {
       for (const disabledUnit of player.disabledUnits) {
-        writeInt32(dest, disabledUnit)
+        dest.writeInt32BE(disabledUnit)
       }
     }
     for (const player of this.players) {
-      writeInt32(dest, player.disabledBuildings.map((e) => e >= 0).length)
+      dest.writeInt32BE(player.disabledBuildings.map((e) => e >= 0).length)
     }
     for (const player of this.players) {
       for (const disabledUnit of player.disabledBuildings) {
-        writeInt32(dest, disabledUnit)
+        dest.writeInt32BE(disabledUnit)
       }
     }
-    writeInt64(dest, 0n)
-    writeInt32(dest, this.allTechs)
+    dest.writeBigInt64BE(0n)
+    dest.writeInt32BE(this.allTechs)
     for (const player of this.players) {
-      writeInt32(dest, player.startAge + (this.getVersion() >= ScxVersion.Version126 ? 2 : 0))
+      dest.writeInt32BE(player.startAge + (this.getVersion() >= ScxVersion.Version126 ? 2 : 0))
     }
-    writeInt32(dest, -99)
-    writeInt32(dest, this.cameraX)
-    writeInt32(dest, this.cameraY)
+    dest.writeInt32BE(-99)
+    dest.writeInt32BE(this.cameraX)
+    dest.writeInt32BE(this.cameraY)
     if (this.getVersion() >= ScxVersion.Version122) {
-      writeInt32(dest, this.mapType)
+      dest.writeInt32BE(this.mapType)
     }
     if (this.getVersion() >= ScxVersion.Version124) {
-      dest.write(Buffer.from(new Array(16).fill(0)))
+      dest.writeBuffer(Buffer.from(new Array(16).fill(0)))
     }
-    writeInt32(dest, this.mapX)
-    writeInt32(dest, this.mapY)
+    dest.writeInt32BE(this.mapX)
+    dest.writeInt32BE(this.mapY)
     for (let i = 0; i <= this.mapX - 1; i++) {
       for (let j = 0; j <= this.mapY - 1; j++) {
-        dest.write(this.map[i][j].id)
-        writeUInt16(dest, this.map[i][j].elevation)
+        dest.writeInt8(this.map[i][j].id)
+        dest.writeUInt16BE(this.map[i][j].elevation)
       }
     }
-    writeInt32(dest, 9)
+    dest.writeInt32BE(9)
     for (const resource of this.resources) {
-      writeFloat(dest, resource.food)
-      writeFloat(dest, resource.wood)
-      writeFloat(dest, resource.gold)
-      writeFloat(dest, resource.stone)
-      writeFloat(dest, resource.orex)
-      writeInt32(dest, 0)
+      dest.writeFloatBE(resource.food)
+      dest.writeFloatBE(resource.wood)
+      dest.writeFloatBE(resource.gold)
+      dest.writeFloatBE(resource.stone)
+      dest.writeFloatBE(resource.orex)
+      dest.writeInt32BE(0)
       if (this.getVersion() >= ScxVersion.Version122) {
-        writeFloat(dest, resource.populationLimit)
+        dest.writeFloatBE(resource.populationLimit)
       }
     }
     for (const unit of this.units) {
-      writeInt32(dest, unit.length)
+      dest.writeInt32BE(unit.length)
       for (const e of unit) {
-        writeFloat(dest, e.posX)
-        writeFloat(dest, e.posY)
-        writeFloat(dest, e.posZ)
-        writeInt32(dest, e.id)
-        writeUInt16(dest, e.unitId)
-        writeByte(dest, e.state)
-        writeFloat(dest, e.rotation)
-        writeInt16(dest, e.frame)
-        writeInt32(dest, e.garrison)
+        dest.writeFloatBE(e.posX)
+        dest.writeFloatBE(e.posY)
+        dest.writeFloatBE(e.posZ)
+        dest.writeInt32BE(e.id)
+        dest.writeUInt16BE(e.unitId)
+        dest.writeInt8(e.state)
+        dest.writeFloatBE(e.rotation)
+        dest.writeInt16BE(e.frame)
+        dest.writeInt32BE(e.garrison)
       }
     }
-    writeInt32(dest, 9)
+    dest.writeInt32BE(9)
     for (const playerMisc of this.misc) {
       this.writeString16(dest, playerMisc.name)
-      writeFloat(dest, playerMisc.cameraX)
-      writeFloat(dest, playerMisc.cameraY)
-      writeInt32(dest, 0)
-      writeByte(dest, playerMisc.alliedVictory)
+      dest.writeFloatBE(playerMisc.cameraX)
+      dest.writeFloatBE(playerMisc.cameraY)
+      dest.writeInt32BE(0)
+      dest.writeUInt8(playerMisc.alliedVictory)
       for (const diplomacyB of playerMisc.diplomacy) {
-        writeByte(dest, diplomacyB)
+        dest.writeUInt8(diplomacyB)
       }
       for (const diplomacy2 of playerMisc.diplomacy2) {
-        writeInt32(dest, diplomacy2)
+        dest.writeInt32BE(diplomacy2)
       }
-      writeInt32(dest, playerMisc.color)
-      writeFloat(dest, 2)
-      writeInt64(dest, 0n)
-      writeInt64(dest, 0n)
-      writeByte(dest, 0)
-      writeInt32(dest, -1)
+      dest.writeInt32BE(playerMisc.color)
+      dest.writeFloatBE(2)
+      dest.writeBigInt64BE(0n)
+      dest.writeBigInt64BE(0n)
+      dest.writeUInt8(0)
+      dest.writeInt32BE(-1)
     }
-    writeFloat(dest, 1.6)
-    writeByte(dest, 0)
-    writeInt32(dest, this.triggers.length)
+    dest.writeFloatBE(1.6)
+    dest.writeUInt8(0)
+    dest.writeInt32BE(this.triggers.length)
     for (const trigger of this.triggers) {
-      writeInt32(dest, trigger.isEnabled)
-      writeInt32(dest, trigger.isLooping)
-      writeByte(dest, 0)
-      writeByte(dest, trigger.isObjective)
-      writeInt32(dest, trigger.descriptionOrder)
-      writeInt32(dest, 0)
+      dest.writeInt32BE(trigger.isEnabled)
+      dest.writeInt32BE(trigger.isLooping)
+      dest.writeUInt8(0)
+      dest.writeUInt8(trigger.isObjective)
+      dest.writeInt32BE(trigger.descriptionOrder)
+      dest.writeInt32BE(0)
       this.writeString32(dest, trigger.description)
       this.writeString32(dest, trigger.name)
-      writeInt32(dest, trigger.effects.length)
+      dest.writeInt32BE(trigger.effects.length)
       for (const effect of trigger.effects) {
-        writeInt32(dest, effect.type)
-        writeInt32(dest, effect.getFields().length)
+        dest.writeInt32BE(effect.type)
+        dest.writeInt32BE(effect.getFields().length)
         for (const fields of effect.getFields()) {
-          writeInt32(dest, fields)
+          dest.writeInt32BE(fields)
         }
         this.writeString32(dest, effect.text)
         this.writeString32(dest, effect.soundFile)
         for (const unitId of effect.unitIds) {
-          writeInt32(dest, unitId)
+          dest.writeInt32BE(unitId)
         }
       }
       for (const effectOrder of trigger.effectOrder) {
-        writeInt32(dest, effectOrder)
+        dest.writeInt32BE(effectOrder)
       }
-      writeInt32(dest, trigger.conditions.length)
+      dest.writeInt32BE(trigger.conditions.length)
       for (const condition of trigger.conditions) {
-        writeInt32(dest, condition.type)
-        writeInt32(dest, condition.getFields().length)
+        dest.writeInt32BE(condition.type)
+        dest.writeInt32BE(condition.getFields().length)
         for (const field of condition.getFields()) {
-          writeInt32(dest, field)
+          dest.writeInt32BE(field)
         }
       }
       for (const conditionOrder of trigger.conditionOrder) {
-        writeInt32(dest, conditionOrder)
+        dest.writeInt32BE(conditionOrder)
       }
     }
     for (const triggerOrder of this.triggerOrder) {
-      writeInt32(dest, triggerOrder)
+      dest.writeInt32BE(triggerOrder)
     }
-    writeInt32(dest, this.hasAiFile)
-    writeInt32(dest, this.needsWorkaround)
+    dest.writeInt32BE(this.hasAiFile)
+    dest.writeInt32BE(this.needsWorkaround)
     if (this.needsWorkaround === 1) {
-      dest.write(this.workaroundBytes)
+      dest.writeBuffer(this.workaroundBytes)
     }
     if (this.hasAiFile) {
-      writeInt32(dest, this.aiFiles.size)
+      dest.writeInt32BE(this.aiFiles.size)
       for (const [k, v] of this.aiFiles.entries()) {
-        writeInt32(dest, k.length)
-        dest.write(k)
-        writeInt32(dest, v.length)
-        dest.write(v)
+        dest.writeInt32BE(k.length)
+        dest.writeBuffer(k)
+        dest.writeInt32BE(v.length)
+        dest.writeBuffer(v)
       }
     }
+    buffer.writeBuffer(deflateSync(dest.toBuffer()))
 
-    return ms
+    return buffer.toBuffer()
   }
 
   public save(): void {
@@ -689,14 +686,14 @@ export class ScxFile {
     }
   }
 
-  private writeString32(stream: Writable, s: string): void {
-    writeInt32(stream, Buffer.byteLength(s))
-    stream.write(s)
+  private writeString32(buffer: SmartBuffer, s: string): void {
+    buffer.writeInt32BE(Buffer.byteLength(s))
+    buffer.writeString(s)
   }
 
-  private writeString16(stream: Writable, s: string): void {
-    writeInt16(stream, Buffer.byteLength(s))
-    stream.write(s)
+  private writeString16(buffer: SmartBuffer, s: string): void {
+    buffer.writeInt16BE(Buffer.byteLength(s))
+    buffer.writeString(s)
   }
 
   private transcodeBytesFixed(buffer: Buffer, from = 'gbk', to = 'utf8'): Buffer {

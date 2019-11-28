@@ -2,7 +2,6 @@ import {SmartBuffer} from 'smart-buffer'
 import {CpxVersion} from './enums'
 import {convert, FakeEncoding} from './func'
 import {ScxFile} from './scx-file'
-import MemoryStream = require('memorystream')
 
 export class CpxFile {
   public fileName: string
@@ -52,13 +51,13 @@ export class CpxFile {
       }
       const position = buffer.readOffset
       buffer.readOffset = num3
-      this.scenarios.push(new ScxFile(new MemoryStream(buffer.readBuffer(count))))
+      this.scenarios.push(new ScxFile(buffer.readBuffer(count)))
       buffer.readOffset = position
     }
   }
 
   public async getStream(): Promise<Buffer> {
-    const buffer = SmartBuffer.fromSize(1024 * 1024)
+    const buffer = SmartBuffer.fromSize(10 * 1024 * 1024)
     const queue = []
     buffer.writeBuffer(this.signature)
     if (this.getVersion() === CpxVersion.CpxVersion2) {
@@ -70,7 +69,7 @@ export class CpxFile {
     buffer.writeString(this.campaignName)
     buffer.writeInt32BE(this.scenarios.length)
     for (let i = 0; i <= this.scenarios.length - 1; i++) {
-      const scxFile = (await this.scenarios[i].getBytes())
+      const scxFile = await this.scenarios[i].getBytes()
       buffer.writeInt32BE(scxFile.length)
       queue.push(buffer.writeOffset)
       buffer.writeInt32BE(0)
@@ -102,6 +101,7 @@ export class CpxFile {
   }
 
   public transcode() {
+    this.campaignNameBuffer = this.transcodeBytesFixed(this.campaignNameBuffer)
     for (let i = 0; i <= this.scenarios.length; i++) {
       this.scenarioNames[i] = this.transcodeBytesFixed(this.scenarioNames[i])
       this.scenarioNamesWithExtension[i] = this.transcodeBytesFixed(this.scenarioNamesWithExtension[i])
