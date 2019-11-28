@@ -108,7 +108,7 @@ export class Effect {
   public soundFileBuffer: Buffer
   public type: EffectType
   public fields: number[] = []
-  public unitIds: number[]
+  public unitIds: number[] = []
 
   public get text(): string {
     return this.parent.encoding.getString(this.textBuffer)

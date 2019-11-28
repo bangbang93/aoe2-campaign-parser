@@ -4,7 +4,6 @@ import {deflateSync, inflateRawSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
 import {convert, FakeEncoding} from './func'
 import {BITMAPDIB, Condition, Effect, Player, PlayerMisc, Resource, RGB, Terrain, Trigger, Unit} from './player'
-import * as iconv from 'iconv-lite'
 
 export class ScxFile {
   public encoding = new FakeEncoding()
@@ -231,6 +230,7 @@ export class ScxFile {
         const terrain = new Terrain()
         terrain.id = input.readInt8()
         terrain.elevation = input.readUInt16LE()
+        this.map[i].push(terrain)
       }
     }
     input.readBuffer(4)
@@ -247,7 +247,7 @@ export class ScxFile {
         resource.populationLimit = input.readFloatLE()
       }
     }
-    for (let i = 0; i <= 7; i++) {
+    for (let i = 0; i <= 8; i++) {
       const unit = []
       this.units.push(unit)
       const num30 = input.readInt32LE()
@@ -271,7 +271,6 @@ export class ScxFile {
       this.misc.push(playerMisc)
       const nameLength = input.readInt16LE()
       playerMisc.nameBuffer = input.readBuffer(nameLength)
-      console.log(iconv.decode(playerMisc.nameBuffer, 'gbk'))
       playerMisc.cameraX = input.readFloatLE()
       playerMisc.cameraY = input.readFloatLE()
       input.readInt32LE()
@@ -284,9 +283,7 @@ export class ScxFile {
         playerMisc.diplomacy2.push(input.readInt32LE())
       }
       playerMisc.color = input.readInt32LE()
-      console.log(playerMisc.color)
       const readCount = (input.readFloatLE() === 2 ? 8 : 0) + input.readInt16LE() * 44 + 11
-      console.log(readCount)
       input.readBuffer(readCount)
     }
     input.readBuffer(9)
@@ -700,7 +697,7 @@ export class ScxFile {
   private transcodeBytesFixed(buffer: Buffer, from = 'gbk', to = 'utf8'): Buffer {
     const length = buffer.length
     const newBuf = Buffer.alloc(length)
-    newBuf.copy(convert(buffer, from, to))
+    convert(buffer, from, to).copy(newBuf)
     return newBuf
   }
 }

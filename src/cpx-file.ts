@@ -103,7 +103,7 @@ export class CpxFile {
 
   public transcode() {
     this.campaignNameBuffer = this.transcodeBytesFixed(this.campaignNameBuffer)
-    for (let i = 0; i <= this.scenarios.length; i++) {
+    for (let i = 0; i < this.scenarios.length; i++) {
       this.scenarioNames[i] = this.transcodeBytesFixed(this.scenarioNames[i])
       this.scenarioNamesWithExtension[i] = this.transcodeBytesFixed(this.scenarioNamesWithExtension[i])
       this.scenarios[i].transcode()
@@ -113,7 +113,7 @@ export class CpxFile {
   private transcodeBytesFixed(buffer: Buffer, from = 'gbk', to = 'utf8'): Buffer {
     const length = buffer.length
     const newBuf = Buffer.alloc(length)
-    newBuf.copy(convert(buffer, from, to))
+    convert(buffer, from, to).copy(newBuf)
     return newBuf
   }
 
