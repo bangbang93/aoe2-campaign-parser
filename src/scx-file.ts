@@ -1,5 +1,4 @@
-import {createWriteStream} from 'fs'
-import * as GetStream from 'get-stream'
+import {writeFile} from 'fs-extra'
 import {SmartBuffer} from 'smart-buffer'
 import {deflateSync, inflateSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
@@ -351,7 +350,7 @@ export class ScxFile {
     }
   }
 
-  public getStream(): Buffer {
+  public getBuffer(): Buffer {
     const buffer = SmartBuffer.fromSize(10 * 1024 * 1024)
     buffer.writeBuffer(this.version)
     buffer.writeInt32BE(Buffer.byteLength(this.instruction) + 20)
@@ -624,18 +623,14 @@ export class ScxFile {
     return buffer.toBuffer()
   }
 
-  public save(): void {
-    const stream = this.getStream()
-    stream.pipe(createWriteStream(this.fileName))
+  public async save(): Promise<void> {
+    const buffer = this.getBuffer()
+    await writeFile(this.fileName, buffer)
   }
 
-  public saveAs(fileName: string): void {
-    const stream = this.getStream()
-    stream.pipe(createWriteStream(this.fileName))
-  }
-
-  public async getBytes(): Promise<Buffer> {
-    return GetStream.buffer(this.getStream())
+  public async saveAs(fileName: string): Promise<void> {
+    const buffer = this.getBuffer()
+    await writeFile(fileName, buffer)
   }
 
   public getBytesFixed(s: string, length: number): Buffer {

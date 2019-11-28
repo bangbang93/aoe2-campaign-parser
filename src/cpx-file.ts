@@ -21,7 +21,8 @@ export class CpxFile {
     return this.scenarios.length
   }
 
-  constructor(buffer: SmartBuffer) {
+  constructor(src: Buffer) {
+    const buffer = SmartBuffer.fromBuffer(src)
     this.signature = buffer.readBuffer(4)
     if (this.getVersion() === CpxVersion.CpxVersion2) {
       const num = buffer.readInt32BE()
@@ -56,7 +57,7 @@ export class CpxFile {
     }
   }
 
-  public async getStream(): Promise<Buffer> {
+  public getBuffer(): Buffer {
     const buffer = SmartBuffer.fromSize(10 * 1024 * 1024)
     const queue = []
     buffer.writeBuffer(this.signature)
@@ -69,7 +70,7 @@ export class CpxFile {
     buffer.writeString(this.campaignName)
     buffer.writeInt32BE(this.scenarios.length)
     for (let i = 0; i <= this.scenarios.length - 1; i++) {
-      const scxFile = await this.scenarios[i].getBytes()
+      const scxFile = this.scenarios[i].getBuffer()
       buffer.writeInt32BE(scxFile.length)
       queue.push(buffer.writeOffset)
       buffer.writeInt32BE(0)
@@ -94,7 +95,7 @@ export class CpxFile {
       buffer.writeOffset = queue.unshift()
       buffer.writeInt32BE(pos)
       buffer.writeOffset = pos
-      buffer.writeBuffer(await this.scenarios[i].getBytes())
+      buffer.writeBuffer(this.scenarios[i].getBuffer())
     }
 
     return buffer.toBuffer()
