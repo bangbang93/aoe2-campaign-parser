@@ -461,7 +461,7 @@ export class ScxFile {
       dest.writeInt8(this.maxTeams)
     }
     for (const player of this.players) {
-      dest.writeInt32LE(player.disabledTechs.map((e) => e >= 0).length)
+      dest.writeInt32LE(player.disabledTechs.filter((e) => e >= 0).length)
     }
     for (const player of this.players) {
       for (const disabledTech of player.disabledTechs) {
@@ -469,7 +469,7 @@ export class ScxFile {
       }
     }
     for (const player of this.players) {
-      dest.writeInt32LE(player.disabledUnits.map((e) => e >= 0).length)
+      dest.writeInt32LE(player.disabledUnits.filter((e) => e >= 0).length)
     }
     for (const player of this.players) {
       for (const disabledUnit of player.disabledUnits) {
@@ -477,7 +477,7 @@ export class ScxFile {
       }
     }
     for (const player of this.players) {
-      dest.writeInt32LE(player.disabledBuildings.map((e) => e >= 0).length)
+      dest.writeInt32LE(player.disabledBuildings.filter((e) => e >= 0).length)
     }
     for (const player of this.players) {
       for (const disabledUnit of player.disabledBuildings) {
