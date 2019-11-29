@@ -1,4 +1,4 @@
-import {encode} from 'iconv-lite'
+import {encode, encodingExists} from 'iconv-lite'
 import {SmartBuffer} from 'smart-buffer'
 import {deflateRawSync, inflateRawSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
@@ -53,6 +53,9 @@ export class ScxFile {
 
   // eslint-disable-next-line complexity
   constructor(scx: Buffer, from = 'gbk', private to = 'utf8') {
+    if (!encodingExists(from)) throw new Error(`unsupported input encoding ${from}`)
+    if (!encodingExists(to)) throw new Error(`unsupported input encoding ${to}`)
+
     const buffer = SmartBuffer.fromBuffer(scx)
     this.version = buffer.readBuffer(4)
     buffer.readBuffer(4)

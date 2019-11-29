@@ -1,4 +1,4 @@
-import {decode, encode} from 'iconv-lite'
+import {decode, encode, encodingExists} from 'iconv-lite'
 import {SmartBuffer} from 'smart-buffer'
 import {CpxVersion} from './enums'
 import {readString32, readStringFixed, writeStringFixed} from './func'
@@ -13,6 +13,9 @@ export class CpxFile {
   public scenarios: ScxFile[] = []
 
   constructor(src: Buffer, from = 'gbk', private to = 'utf8') {
+    if (!encodingExists(from)) throw new Error(`unsupported input encoding ${from}`)
+    if (!encodingExists(to)) throw new Error(`unsupported input encoding ${to}`)
+
     const buffer = SmartBuffer.fromBuffer(src)
     this.signature = buffer.readBuffer(4)
     if (this.getVersion() === CpxVersion.CpxVersion2) {
