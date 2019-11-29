@@ -1,6 +1,6 @@
 {
   "name": "aoe2-campaign-parser",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "campaign file parser for aoe2",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -43,5 +43,7 @@
     "memorystream": "^0.3.1",
     "smart-buffer": "^4.1.0"
   },
-  "files": ["lib"]
+  "files": [
+    "lib"
+  ]
 }
