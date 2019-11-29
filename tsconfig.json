@@ -2,9 +2,9 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "esnext",
-    "sourceMap": true,
     "outDir": "lib",
-    "noUnusedLocals": true
+    "noUnusedLocals": true,
+    "declaration": true
   },
   "include": ["src"],
   "exclude": [
