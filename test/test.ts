@@ -6,6 +6,8 @@ const file = readFileSync(join(__dirname, '1-9.cpn'))
 
 const cpxFile = new CpxFile(file)
 
-cpxFile.transcode()
 const buffer = cpxFile.getBuffer()
-writeFileSync('output.cpn', buffer)
+writeFileSync(join(__dirname, 'output.cpn'), buffer)
+
+const newCpx = new CpxFile(buffer)
+newCpx.getBuffer()

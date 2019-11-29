@@ -6,7 +6,6 @@
     "outDir": "lib",
     "noUnusedLocals": true
   },
-  "include": ["src"],
   "exclude": [
     "node_modules"
   ]

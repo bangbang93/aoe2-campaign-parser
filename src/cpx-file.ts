@@ -1,27 +1,18 @@
+import {decode, encode} from 'iconv-lite'
 import {SmartBuffer} from 'smart-buffer'
 import {CpxVersion} from './enums'
-import {convert, FakeEncoding} from './func'
+import {writeFixedString} from './func'
 import {ScxFile} from './scx-file'
 
 export class CpxFile {
-  public fileName: string
-  private encoding = new FakeEncoding()
   private signature: Buffer
   private unknownInt32s: number[] = []
-  private campaignNameBuffer: Buffer
-  private scenarioNames: Buffer[] = []
-  private scenarioNamesWithExtension: Buffer[] = []
+  private campaignName: string
+  private scenarioNames: string[] = []
+  private scenarioNamesWithExtension: string[] = []
   private scenarios: ScxFile[] = []
 
-  public get campaignName(): string {
-    return this.encoding.getString(this.campaignNameBuffer)
-  }
-
-  public get scenarioCount(): number {
-    return this.scenarios.length
-  }
-
-  constructor(src: Buffer) {
+  constructor(src: Buffer, from = 'gbk', private to = 'utf8') {
     const buffer = SmartBuffer.fromBuffer(src)
     this.signature = buffer.readBuffer(4)
     if (this.getVersion() === CpxVersion.CpxVersion2) {
@@ -30,22 +21,22 @@ export class CpxFile {
         this.unknownInt32s.push(buffer.readInt32LE())
       }
     }
-    this.campaignNameBuffer = buffer.readBuffer(256)
+    this.campaignName = decode(buffer.readBuffer(256), from)
     const num2 = buffer.readInt32LE() - 1
     for (let i = 0; i <= num2; i++) {
       const count = buffer.readInt32LE()
       const num3 = buffer.readInt32LE()
       switch (this.getVersion()) {
         case CpxVersion.CpxVersion1:
-          this.scenarioNames.push(buffer.readBuffer(255))
-          this.scenarioNamesWithExtension.push(buffer.readBuffer(257))
+          this.scenarioNames.push(decode(buffer.readBuffer(255), from))
+          this.scenarioNamesWithExtension.push(decode(buffer.readBuffer(257), from))
           break
         case CpxVersion.CpxVersion2: {
           let count2 = buffer.readInt16LE()
           buffer.readInt16LE()
-          this.scenarioNames.push(buffer.readBuffer(count2))
+          this.scenarioNames.push(decode(buffer.readBuffer(count2), from))
           count2 = buffer.readInt16LE()
-          this.scenarioNamesWithExtension.push(buffer.readBuffer(count2))
+          this.scenarioNamesWithExtension.push(decode(buffer.readBuffer(count2), from))
           break
         }
         // no default
@@ -67,29 +58,32 @@ export class CpxFile {
         buffer.writeInt32BE(unknownInt32)
       }
     }
-    buffer.writeString(this.campaignName)
+    buffer.writeBuffer(writeFixedString(this.campaignName, 256, this.to))
     buffer.writeInt32BE(this.scenarios.length)
-    for (let i = 0; i <= this.scenarios.length - 1; i++) {
-      const scxFile = this.scenarios[i].getBuffer()
+    this.scenarios.forEach((scenario, i) => {
+      const scxFile = scenario.getBuffer()
       buffer.writeInt32BE(scxFile.length)
       queue.push(buffer.writeOffset)
       buffer.writeInt32BE(0)
       switch (this.getVersion()) {
         case CpxVersion.CpxVersion1:
-          buffer.writeBuffer(this.scenarioNames[i])
-          buffer.writeBuffer(this.scenarioNamesWithExtension[i])
+          buffer.writeBuffer(writeFixedString(this.scenarioNames[i], 255, this.to))
+          buffer.writeBuffer(writeFixedString(this.scenarioNamesWithExtension[i], 257, this.to))
           break
-        case CpxVersion.CpxVersion2:
-          buffer.writeInt16BE(this.scenarioNames[i].length)
+        case CpxVersion.CpxVersion2: {
+          const name = encode(this.scenarioNames[i], this.to)
+          buffer.writeInt16BE(name.length)
           buffer.writeInt16BE(2656)
-          buffer.writeBuffer(this.scenarioNames[i])
-          buffer.writeInt16BE(this.scenarioNamesWithExtension[i].length)
+          buffer.writeBuffer(name)
+          const nameWithExt = encode(this.scenarioNamesWithExtension[i], this.to)
+          buffer.writeInt16BE(nameWithExt.length)
           buffer.writeInt16BE(2656)
-          buffer.writeBuffer(this.scenarioNamesWithExtension[i])
+          buffer.writeBuffer(nameWithExt)
           break
+        }
         //no default
       }
-    }
+    })
     for (let i = 0; i <= this.scenarios.length - 1; i++) {
       const pos = buffer.writeOffset
       buffer.writeOffset = queue.unshift()
@@ -99,22 +93,6 @@ export class CpxFile {
     }
 
     return buffer.toBuffer()
-  }
-
-  public transcode() {
-    this.campaignNameBuffer = this.transcodeBytesFixed(this.campaignNameBuffer)
-    for (let i = 0; i < this.scenarios.length; i++) {
-      this.scenarioNames[i] = this.transcodeBytesFixed(this.scenarioNames[i])
-      this.scenarioNamesWithExtension[i] = this.transcodeBytesFixed(this.scenarioNamesWithExtension[i])
-      this.scenarios[i].transcode()
-    }
-  }
-
-  private transcodeBytesFixed(buffer: Buffer, from = 'gbk', to = 'utf8'): Buffer {
-    const length = buffer.length
-    const newBuf = Buffer.alloc(length)
-    convert(buffer, from, to).copy(newBuf)
-    return newBuf
   }
 
   private getVersion(): CpxVersion {
