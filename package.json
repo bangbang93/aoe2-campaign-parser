@@ -1,6 +1,6 @@
 {
   "name": "aoe2-campaign-parser",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,5 +42,6 @@
     "iconv-lite": "^0.5.0",
     "memorystream": "^0.3.1",
     "smart-buffer": "^4.1.0"
-  }
+  },
+  "files": ["lib"]
 }
