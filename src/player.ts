@@ -80,10 +80,6 @@ export class Effect {
   public fields: number[] = []
   public unitIds: number[] = []
 
-  public getFields(): number[] {
-    return this.fields
-  }
-
   public toString(): string {
     return this.type.toString()
   }
@@ -92,10 +88,6 @@ export class Effect {
 export class Condition {
   public fields: number[] = []
   public type: ConditionType
-
-  public getFields(): number[] {
-    return this.fields
-  }
 
   public toString(): string {
     return this.type.toString()

@@ -5,12 +5,12 @@ import {readString32, readStringFixed, writeStringFixed} from './func'
 import {ScxFile} from './scx-file'
 
 export class CpxFile {
-  private signature: Buffer
-  private unknownInt32s: number[] = []
-  private campaignName: string
-  private scenarioNames: string[] = []
-  private scenarioNamesWithExtension: string[] = []
-  private scenarios: ScxFile[] = []
+  public signature: Buffer
+  public unknownInt32s: number[] = []
+  public campaignName: string
+  public scenarioNames: string[] = []
+  public scenarioNamesWithExtension: string[] = []
+  public scenarios: ScxFile[] = []
 
   constructor(src: Buffer, from = 'gbk', private to = 'utf8') {
     const buffer = SmartBuffer.fromBuffer(src)

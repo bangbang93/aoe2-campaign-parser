@@ -1,8 +1,8 @@
-import {decode, encode} from 'iconv-lite'
+import {encode} from 'iconv-lite'
 import {SmartBuffer} from 'smart-buffer'
 import {deflateRawSync, inflateRawSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
-import {readString32, writeString16, writeString32, writeStringFixed} from './func'
+import {readString16, readString32, readStringFixed, writeString16, writeString32, writeStringFixed} from './func'
 import {BITMAPDIB, Condition, Effect, Player, PlayerMisc, Resource, RGB, Terrain, Trigger, Unit} from './player'
 
 export class ScxFile {
@@ -39,17 +39,17 @@ export class ScxFile {
   public needsWorkaround: number
   public workaroundBytes: Buffer
   public aiFiles: Map<Buffer, Buffer> = new Map()
-  private version: Buffer
-  private instruction: string
-  private playerCount: number
-  private formatVersion: number
-  private unknownInt32s: number[] = []
-  private nextUid: number
-  private version2: number
-  private originalFilename: string
-  private stringTableInfos: number[] = []
-  private stringInfos: string[] = []
-  private buffer: Buffer
+  public version: Buffer
+  public instruction: string
+  public playerCount: number
+  public formatVersion: number
+  public unknownInt32s: number[] = []
+  public nextUid: number
+  public version2: number
+  public originalFilename: string
+  public stringTableInfos: number[] = []
+  public stringInfos: string[] = []
+  public buffer: Buffer
 
   // eslint-disable-next-line complexity
   constructor(scx: Buffer, from = 'gbk', private to = 'utf8') {
@@ -75,7 +75,7 @@ export class ScxFile {
     this.version2 = input.readFloatLE()
     for (let i = 0; i < 16; i++) {
       const player = new Player()
-      player.name = decode(input.readBuffer(256), from)
+      player.name = readStringFixed(input, 256, from)
       this.players.push(player)
     }
     for (let i = 0; i < 16; i++) {
@@ -88,15 +88,14 @@ export class ScxFile {
       input.readBuffer(4)
     }
     input.readBuffer(9)
-    const originalFilenameLength = input.readInt16LE()
-    this.originalFilename = decode(input.readBuffer(originalFilenameLength), from)
+    this.originalFilename = readString16(input, from)
     const num5 = this.getVersion() >= ScxVersion.Version122 ? 5 : 4
     for (let i = 0; i <= num5; i++) {
       this.stringTableInfos.push(input.readInt32LE())
     }
     const num6 = this.getVersion() >= ScxVersion.Version122 ? 9 : 8
     for (let i = 0; i <= num6; i++) {
-      this.stringInfos.push(decode(input.readBuffer(input.readInt16LE()), from))
+      this.stringInfos.push(readString16(input, from))
     }
     this.hasBitmap = input.readInt32LE()
     this.bitMapX = input.readInt32LE()
@@ -129,7 +128,7 @@ export class ScxFile {
       input.readBuffer(input.readInt16LE())
     }
     for (let i = 0; i <= 15; i++) {
-      this.players[i].ai = decode(input.readBuffer(input.readInt16LE()), from)
+      this.players[i].ai = readString16(input, from)
     }
     for (let i = 0; i <= 15; i++) {
       input.readBuffer(8)
@@ -254,8 +253,7 @@ export class ScxFile {
     for (let i = 0; i <= 7; i++) {
       const playerMisc = new PlayerMisc()
       this.misc.push(playerMisc)
-      const nameLength = input.readInt16LE()
-      playerMisc.name = decode(input.readBuffer(nameLength), from)
+      playerMisc.name = readString16(input, from)
       playerMisc.cameraX = input.readFloatLE()
       playerMisc.cameraY = input.readFloatLE()
       input.readInt32LE()
@@ -282,9 +280,9 @@ export class ScxFile {
       trigger.isObjective = input.readInt8()
       trigger.descriptionOrder = input.readInt32LE()
       input.readBuffer(4)
-      trigger.description = decode(input.readBuffer(input.readInt32LE()), from)
+      trigger.description = readString32(input, from)
       // console.log(trigger.description)
-      trigger.name = decode(input.readBuffer(input.readInt32LE()), from)
+      trigger.name = readString32(input, from)
       const effectCount = input.readInt32LE()
       for (let j = 0; j < effectCount; j++) {
         const effect = new Effect()
@@ -294,8 +292,8 @@ export class ScxFile {
         for (let k = 0; k < fieldCount; k++) {
           effect.fields.push(input.readInt32LE())
         }
-        effect.text = decode(input.readBuffer(input.readInt32LE()), from)
-        effect.soundFile = decode(input.readBuffer(input.readInt32LE()), from)
+        effect.text = readString32(input, from)
+        effect.soundFile = readString32(input, from)
         if (effect.fields.length > 4) {
           const num41 = effect.fields[EffectField.NumSelected] - 1
           for (let k = 0; k <= num41; k++) {
@@ -314,7 +312,7 @@ export class ScxFile {
         trigger.conditions.push(condition)
         const num47 = input.readInt32LE() - 1
         for (let k = 0; k <= num47; k++) {
-          condition.getFields().push(input.readInt32LE())
+          condition.fields.push(input.readInt32LE())
         }
       }
       const num49 = trigger.conditions.length - 1
@@ -362,7 +360,7 @@ export class ScxFile {
     dest.writeInt32LE(this.nextUid)
     dest.writeFloatLE(this.version2)
     for (const player of this.players) {
-      dest.writeBuffer(writeStringFixed(player.name, 256))
+      writeStringFixed(dest, player.name, 256)
     }
     for (const player of this.players) {
       dest.writeInt32LE(player.stringTableName)
@@ -567,8 +565,8 @@ export class ScxFile {
       dest.writeInt32LE(trigger.effects.length)
       for (const effect of trigger.effects) {
         dest.writeInt32LE(effect.type)
-        dest.writeInt32LE(effect.getFields().length)
-        for (const fields of effect.getFields()) {
+        dest.writeInt32LE(effect.fields.length)
+        for (const fields of effect.fields) {
           dest.writeInt32LE(fields)
         }
         writeString32(dest, effect.text)
@@ -583,8 +581,8 @@ export class ScxFile {
       dest.writeInt32LE(trigger.conditions.length)
       for (const condition of trigger.conditions) {
         dest.writeInt32LE(condition.type)
-        dest.writeInt32LE(condition.getFields().length)
-        for (const field of condition.getFields()) {
+        dest.writeInt32LE(condition.fields.length)
+        for (const field of condition.fields) {
           dest.writeInt32LE(field)
         }
       }
