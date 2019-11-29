@@ -9,5 +9,8 @@ const cpxFile = new CpxFile(file)
 const buffer = cpxFile.getBuffer()
 writeFileSync(join(__dirname, 'output.cpn'), buffer)
 
-const newCpx = new CpxFile(buffer)
-newCpx.getBuffer()
+// eslint-disable-next-line no-console
+console.log('write success')
+
+const newCpx = new CpxFile(buffer, 'utf8')
+console.log(newCpx.getBuffer().length, buffer.length)

@@ -21,7 +21,8 @@ export class CpxFile {
         this.unknownInt32s.push(buffer.readInt32LE())
       }
     }
-    this.campaignName = decode(buffer.readBuffer(256), from)
+    const rawName = buffer.readBuffer(256)
+    this.campaignName = decode(rawName, from)
     const num2 = buffer.readInt32LE() - 1
     for (let i = 0; i <= num2; i++) {
       const count = buffer.readInt32LE()
@@ -43,7 +44,8 @@ export class CpxFile {
       }
       const position = buffer.readOffset
       buffer.readOffset = num3
-      this.scenarios.push(new ScxFile(buffer.readBuffer(count)))
+      const scx = new ScxFile(buffer.readBuffer(count), from, this.to)
+      this.scenarios.push(scx)
       buffer.readOffset = position
     }
   }
@@ -53,18 +55,18 @@ export class CpxFile {
     const queue = []
     buffer.writeBuffer(this.signature)
     if (this.getVersion() === CpxVersion.CpxVersion2) {
-      buffer.writeInt32BE(this.unknownInt32s.length)
+      buffer.writeInt32LE(this.unknownInt32s.length)
       for (const unknownInt32 of this.unknownInt32s) {
-        buffer.writeInt32BE(unknownInt32)
+        buffer.writeInt32LE(unknownInt32)
       }
     }
     buffer.writeBuffer(writeFixedString(this.campaignName, 256, this.to))
-    buffer.writeInt32BE(this.scenarios.length)
+    buffer.writeInt32LE(this.scenarios.length)
     this.scenarios.forEach((scenario, i) => {
       const scxFile = scenario.getBuffer()
-      buffer.writeInt32BE(scxFile.length)
+      buffer.writeInt32LE(scxFile.length)
       queue.push(buffer.writeOffset)
-      buffer.writeInt32BE(0)
+      buffer.writeInt32LE(0)
       switch (this.getVersion()) {
         case CpxVersion.CpxVersion1:
           buffer.writeBuffer(writeFixedString(this.scenarioNames[i], 255, this.to))
@@ -72,24 +74,22 @@ export class CpxFile {
           break
         case CpxVersion.CpxVersion2: {
           const name = encode(this.scenarioNames[i], this.to)
-          buffer.writeInt16BE(name.length)
-          buffer.writeInt16BE(2656)
+          buffer.writeInt16LE(name.length)
+          buffer.writeInt16LE(2656)
           buffer.writeBuffer(name)
           const nameWithExt = encode(this.scenarioNamesWithExtension[i], this.to)
-          buffer.writeInt16BE(nameWithExt.length)
-          buffer.writeInt16BE(2656)
+          buffer.writeInt16LE(nameWithExt.length)
+          buffer.writeInt16LE(2656)
           buffer.writeBuffer(nameWithExt)
           break
         }
         //no default
       }
     })
-    for (let i = 0; i <= this.scenarios.length - 1; i++) {
+    for (const scenario of this.scenarios) {
       const pos = buffer.writeOffset
-      buffer.writeOffset = queue.unshift()
-      buffer.writeInt32BE(pos)
-      buffer.writeOffset = pos
-      buffer.writeBuffer(this.scenarios[i].getBuffer())
+      buffer.writeInt32LE(pos, queue.shift())
+      buffer.writeBuffer(scenario.getBuffer())
     }
 
     return buffer.toBuffer()

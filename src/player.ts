@@ -1,13 +1,12 @@
 import {Color, ConditionType, Diplomacy2, DiplomacyB, DiplomacyI, EffectType, StartAge} from './enums'
-import {ScxFile} from './scx-file'
 
 export class Player {
-  public nameBuffer = Buffer.alloc(256)
+  public name: string
   public stringTableName: number
   public isActive: number
   public isHuman: number
   public civilization: number
-  public aiBuffer: Buffer
+  public ai: string
   public aiFile: Buffer
   public personality: number
   public gold: number
@@ -22,25 +21,6 @@ export class Player {
   public disabledUnits: number[] = []
   public disabledBuildings: number[] = []
   public startAge: StartAge
-
-  public get name(): string {
-    return this.parent.encoding.getString(this.nameBuffer)
-  }
-
-  public set name(value: string) {
-    this.nameBuffer = this.parent.getBytesFixed(value, 256)
-  }
-
-  public get ai(): string {
-    return this.parent.encoding.getString(this.aiBuffer)
-  }
-
-  public set ai(value: string) {
-    this.aiBuffer = this.parent.encoding.getBytes(value)
-  }
-
-  constructor(private parent: ScxFile) {
-  }
 }
 
 export class Terrain {
@@ -80,7 +60,7 @@ export class Unit {
 }
 
 export class PlayerMisc {
-  public nameBuffer: Buffer
+  public name: string
   public cameraX: number
   public cameraY: number
   public alliedVictory: number
@@ -88,46 +68,17 @@ export class PlayerMisc {
   public diplomacy2: Diplomacy2[] = []
   public color: Color
 
-  public get name(): string {
-    return this.parent.encoding.getString(this.nameBuffer)
-  }
-
-  public set name(value: string) {
-    this.nameBuffer = this.parent.encoding.getBytes(value)
-  }
-
-  constructor(private parent: ScxFile) {}
-
   public toString(): string {
     return `${this.name}, ${this.color}`
   }
 }
 
 export class Effect {
-  public textBuffer: Buffer
-  public soundFileBuffer: Buffer
+  public text: string
+  public soundFile: string
   public type: EffectType
   public fields: number[] = []
   public unitIds: number[] = []
-
-  public get text(): string {
-    return this.parent.encoding.getString(this.textBuffer)
-  }
-
-  public set text(value: string) {
-    this.textBuffer = this.parent.encoding.getBytes(value)
-  }
-
-  public get soundFile(): string {
-    return this.parent.encoding.getString(this.soundFileBuffer)
-  }
-
-  public set soundFile(value: string) {
-    this.soundFileBuffer = this.parent.encoding.getBytes(value)
-  }
-
-  constructor(private parent: ScxFile) {
-  }
 
   public getFields(): number[] {
     return this.fields
@@ -152,8 +103,8 @@ export class Condition {
 }
 
 export class Trigger {
-  public descriptionBuffer: Buffer
-  public nameBuffer: Buffer
+  public description: string
+  public name: string
   public isEnabled: number
   public isLooping: number
   public isObjective: number
@@ -162,24 +113,6 @@ export class Trigger {
   public effectOrder: number[] = []
   public conditions: Condition[] = []
   public conditionOrder: number[] = []
-
-  public get description(): string {
-    return this.parent.encoding.getString(this.descriptionBuffer)
-  }
-
-  public set description(value: string) {
-    this.descriptionBuffer = this.parent.encoding.getBytes(value)
-  }
-
-  public get name(): string {
-    return this.parent.encoding.getString(this.nameBuffer)
-  }
-
-  public set name(value: string) {
-    this.nameBuffer = this.parent.encoding.getBytes(value)
-  }
-
-  constructor(private parent: ScxFile) {}
 
   public toString(): string {
     return `${this.name}\t${this.conditions.length} Conditions, ${this.effects.length} Effects`
