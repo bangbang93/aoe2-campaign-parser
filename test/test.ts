@@ -1,3 +1,4 @@
+import {equal} from 'assert'
 import {readFileSync, writeFileSync} from 'fs'
 import {join} from 'path'
 import {CpxFile} from '../src/cpx-file'
@@ -13,4 +14,4 @@ writeFileSync(join(__dirname, 'output.cpn'), buffer)
 console.log('write success')
 
 const newCpx = new CpxFile(buffer, 'utf8')
-console.log(newCpx.getBuffer().length, buffer.length)
+equal(newCpx.getBuffer().length, buffer.length)

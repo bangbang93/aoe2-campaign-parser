@@ -1,14 +1,11 @@
-import {writeFile} from 'fs-extra'
 import {decode, encode} from 'iconv-lite'
 import {SmartBuffer} from 'smart-buffer'
 import {deflateRawSync, inflateRawSync} from 'zlib'
 import {AiMapType, EffectField, ScxVersion, VictoryMode} from './enums'
-import {FakeEncoding} from './func'
+import {readString32, writeString16, writeString32, writeStringFixed} from './func'
 import {BITMAPDIB, Condition, Effect, Player, PlayerMisc, Resource, RGB, Terrain, Trigger, Unit} from './player'
 
 export class ScxFile {
-  public encoding = new FakeEncoding()
-  public fileName: string
   public lastSave: number
   public players: Player[] = []
   public bitMapX: number
@@ -54,14 +51,14 @@ export class ScxFile {
   private stringInfos: string[] = []
   private buffer: Buffer
 
+  // eslint-disable-next-line complexity
   constructor(scx: Buffer, from = 'gbk', private to = 'utf8') {
     const buffer = SmartBuffer.fromBuffer(scx)
     this.version = buffer.readBuffer(4)
     buffer.readBuffer(4)
     this.formatVersion = buffer.readInt32LE()
     this.lastSave = buffer.readInt32LE()
-    const instructionLength = buffer.readInt32LE()
-    this.instruction = decode(buffer.readBuffer(instructionLength), from)
+    this.instruction = readString32(buffer, from)
     buffer.readBuffer(4)
     this.playerCount = buffer.readInt32LE()
     if (this.formatVersion === 3) {
@@ -342,6 +339,7 @@ export class ScxFile {
     }
   }
 
+  // eslint-disable-next-line complexity
   public getBuffer(): Buffer {
     if (this.buffer) return this.buffer
     const buffer = SmartBuffer.fromSize(10 * 1024 * 1024)
@@ -349,7 +347,7 @@ export class ScxFile {
     buffer.writeInt32LE(encode(this.instruction, this.to).length + 20)
     buffer.writeInt32LE(this.formatVersion)
     buffer.writeInt32LE(this.lastSave)
-    this.writeString32(buffer, this.instruction)
+    writeString32(buffer, this.instruction)
     buffer.writeInt32LE(0)
     buffer.writeInt32LE(this.playerCount)
     if (this.formatVersion === 3) {
@@ -364,7 +362,7 @@ export class ScxFile {
     dest.writeInt32LE(this.nextUid)
     dest.writeFloatLE(this.version2)
     for (const player of this.players) {
-      dest.writeBuffer(this.getBytesFixed(player.name, 256))
+      dest.writeBuffer(writeStringFixed(player.name, 256))
     }
     for (const player of this.players) {
       dest.writeInt32LE(player.stringTableName)
@@ -378,12 +376,12 @@ export class ScxFile {
     dest.writeInt32LE(1)
     dest.writeInt8(0)
     dest.writeFloatLE(-1)
-    this.writeString16(dest, this.originalFilename)
+    writeString16(dest, this.originalFilename)
     for (const stringTableInfo of this.stringTableInfos) {
       dest.writeInt32LE(stringTableInfo)
     }
     for (const stringInfo of this.stringInfos) {
-      this.writeString16(dest, stringInfo)
+      writeString16(dest, stringInfo)
     }
     dest.writeInt32LE(this.hasBitmap)
     dest.writeInt32LE(this.bitMapX)
@@ -413,7 +411,7 @@ export class ScxFile {
       dest.writeInt16LE(0)
     }
     for (const player of this.players) {
-      this.writeString16(dest, player.ai)
+      writeString16(dest, player.ai)
     }
     for (const player of this.players) {
       dest.writeBigInt64LE(0n)
@@ -535,7 +533,7 @@ export class ScxFile {
     }
     dest.writeInt32LE(9)
     for (const playerMisc of this.misc) {
-      this.writeString16(dest, playerMisc.name)
+      writeString16(dest, playerMisc.name)
       dest.writeFloatLE(playerMisc.cameraX)
       dest.writeFloatLE(playerMisc.cameraY)
       dest.writeInt32LE(0)
@@ -564,8 +562,8 @@ export class ScxFile {
       dest.writeUInt8(trigger.isObjective)
       dest.writeInt32LE(trigger.descriptionOrder)
       dest.writeInt32LE(0)
-      this.writeString32(dest, trigger.description)
-      this.writeString32(dest, trigger.name)
+      writeString32(dest, trigger.description)
+      writeString32(dest, trigger.name)
       dest.writeInt32LE(trigger.effects.length)
       for (const effect of trigger.effects) {
         dest.writeInt32LE(effect.type)
@@ -573,8 +571,8 @@ export class ScxFile {
         for (const fields of effect.getFields()) {
           dest.writeInt32LE(fields)
         }
-        this.writeString32(dest, effect.text)
-        this.writeString32(dest, effect.soundFile)
+        writeString32(dest, effect.text)
+        writeString32(dest, effect.soundFile)
         for (const unitId of effect.unitIds) {
           dest.writeInt32LE(unitId)
         }
@@ -617,22 +615,6 @@ export class ScxFile {
     return this.buffer
   }
 
-  public async save(): Promise<void> {
-    const buffer = this.getBuffer()
-    await writeFile(this.fileName, buffer)
-  }
-
-  public async saveAs(fileName: string): Promise<void> {
-    const buffer = this.getBuffer()
-    await writeFile(fileName, buffer)
-  }
-
-  public getBytesFixed(s: string, length: number): Buffer {
-    const buffer = Buffer.alloc(length)
-    buffer.write(s)
-    return buffer
-  }
-
   public getVersion(): ScxVersion {
     if (this.version[2] === 49) {
       return ScxVersion.Version118
@@ -650,17 +632,5 @@ export class ScxFile {
       return ScxVersion.Version126
     }
     return ScxVersion.Unknown
-  }
-
-  private writeString32(buffer: SmartBuffer, s: string): void {
-    const buf = encode(s, this.to)
-    buffer.writeInt32LE(buf.length)
-    buffer.writeBuffer(buf)
-  }
-
-  private writeString16(buffer: SmartBuffer, s: string): void {
-    const buf = encode(s, this.to)
-    buffer.writeInt16LE(buf.length)
-    buffer.writeBuffer(buf)
   }
 }

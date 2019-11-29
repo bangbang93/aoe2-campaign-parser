@@ -1,23 +1,35 @@
-import * as iconv from 'iconv-lite'
+import {decode, encode} from 'iconv-lite'
+import {SmartBuffer} from 'smart-buffer'
 
-export function convert(buf: Buffer, from = 'gbk', to = 'utf8'): Buffer {
-  return iconv.encode(iconv.decode(buf, from), to)
+export function writeStringFixed(buffer: SmartBuffer, str: string, length: number, encoding = 'utf8'): Buffer {
+  const buf = Buffer.alloc(length)
+  encode(str, encoding).copy(buf)
+  buffer.writeBuffer(buf)
+  return buf
 }
 
-export function writeFixedString(str: string, length: number, encoding = 'utf8'): Buffer {
-  const buffer = Buffer.alloc(length)
-  iconv.encode(str, encoding).copy(buffer)
-  return buffer
+export function readStringFixed(buffer: SmartBuffer, length: number, encoding = 'gbk'): string {
+  return decode(buffer.readBuffer(length), encoding)
 }
 
-export class FakeEncoding {
-  public targetEncoding = 'utf8'
+export function writeString32(buffer: SmartBuffer, s: string, encoding = 'utf8'): Buffer {
+  const buf = encode(s, encoding)
+  buffer.writeInt32LE(buf.length)
+  buffer.writeBuffer(buf)
+  return buf
+}
 
-  getString(buffer: Buffer): string {
-    return buffer.toString(this.targetEncoding)
-  }
+export function readString32(buffer: SmartBuffer, encoding = 'gbk'): string {
+  return decode(buffer.readBuffer(buffer.readInt32LE()), encoding)
+}
 
-  getBytes(s: string): Buffer {
-    return Buffer.from(s, this.targetEncoding as 'utf8')
-  }
+export function writeString16(buffer: SmartBuffer, s: string, encoding = 'utf8'): Buffer {
+  const buf = encode(s, encoding)
+  buffer.writeInt16LE(buf.length)
+  buffer.writeBuffer(buf)
+  return buf
+}
+
+export function readString16(buffer: SmartBuffer, encoding = 'gbk'): string {
+  return decode(buffer.readBuffer(buffer.readInt16LE()), encoding)
 }

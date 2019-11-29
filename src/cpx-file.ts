@@ -1,7 +1,7 @@
 import {decode, encode} from 'iconv-lite'
 import {SmartBuffer} from 'smart-buffer'
 import {CpxVersion} from './enums'
-import {writeFixedString} from './func'
+import {readString32, readStringFixed, writeStringFixed} from './func'
 import {ScxFile} from './scx-file'
 
 export class CpxFile {
@@ -21,30 +21,30 @@ export class CpxFile {
         this.unknownInt32s.push(buffer.readInt32LE())
       }
     }
-    const rawName = buffer.readBuffer(256)
-    this.campaignName = decode(rawName, from)
-    const num2 = buffer.readInt32LE() - 1
-    for (let i = 0; i <= num2; i++) {
-      const count = buffer.readInt32LE()
-      const num3 = buffer.readInt32LE()
+    this.campaignName = readStringFixed(buffer, 256, from)
+    const scenarioCount = buffer.readInt32LE()
+    for (let i = 0; i < scenarioCount; i++) {
+      const bufferLength = buffer.readInt32LE()
+      const startPosition = buffer.readInt32LE()
       switch (this.getVersion()) {
         case CpxVersion.CpxVersion1:
-          this.scenarioNames.push(decode(buffer.readBuffer(255), from))
-          this.scenarioNamesWithExtension.push(decode(buffer.readBuffer(257), from))
+          this.scenarioNames.push(readStringFixed(buffer, 255, from))
+          this.scenarioNamesWithExtension.push(readStringFixed(buffer, 257, from))
           break
         case CpxVersion.CpxVersion2: {
-          let count2 = buffer.readInt16LE()
+          let stringLength = buffer.readInt16LE()
           buffer.readInt16LE()
-          this.scenarioNames.push(decode(buffer.readBuffer(count2), from))
-          count2 = buffer.readInt16LE()
-          this.scenarioNamesWithExtension.push(decode(buffer.readBuffer(count2), from))
+          this.scenarioNames.push(readString32(buffer, from))
+          stringLength = buffer.readInt16LE()
+          buffer.readInt16LE()
+          this.scenarioNamesWithExtension.push(decode(buffer.readBuffer(stringLength), from))
           break
         }
         // no default
       }
       const position = buffer.readOffset
-      buffer.readOffset = num3
-      const scx = new ScxFile(buffer.readBuffer(count), from, this.to)
+      buffer.readOffset = startPosition
+      const scx = new ScxFile(buffer.readBuffer(bufferLength), from, this.to)
       this.scenarios.push(scx)
       buffer.readOffset = position
     }
@@ -60,7 +60,7 @@ export class CpxFile {
         buffer.writeInt32LE(unknownInt32)
       }
     }
-    buffer.writeBuffer(writeFixedString(this.campaignName, 256, this.to))
+    writeStringFixed(buffer, this.campaignName, 256, this.to)
     buffer.writeInt32LE(this.scenarios.length)
     this.scenarios.forEach((scenario, i) => {
       const scxFile = scenario.getBuffer()
@@ -69,8 +69,8 @@ export class CpxFile {
       buffer.writeInt32LE(0)
       switch (this.getVersion()) {
         case CpxVersion.CpxVersion1:
-          buffer.writeBuffer(writeFixedString(this.scenarioNames[i], 255, this.to))
-          buffer.writeBuffer(writeFixedString(this.scenarioNamesWithExtension[i], 257, this.to))
+          writeStringFixed(buffer, this.scenarioNames[i], 255, this.to)
+          writeStringFixed(buffer, this.scenarioNamesWithExtension[i], 257, this.to)
           break
         case CpxVersion.CpxVersion2: {
           const name = encode(this.scenarioNames[i], this.to)
