@@ -1,7 +1,7 @@
 {
   "name": "aoe2-campaign-parser",
   "version": "0.0.2",
-  "description": "",
+  "description": "campaign file parser for aoe2",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
