@@ -1,9 +1,9 @@
 import {equal} from 'assert'
 import {readFileSync, writeFileSync} from 'fs'
 import {join} from 'path'
-import {CpxFile} from '../src/cpx-file'
+import {CpxFile} from '../src'
 
-const file = readFileSync(join(__dirname, '1-9.cpn'))
+const file = readFileSync(join(__dirname, 'input.cpn'))
 
 const cpxFile = new CpxFile(file)
 

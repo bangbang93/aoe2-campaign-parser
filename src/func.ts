@@ -9,7 +9,7 @@ export function writeStringFixed(buffer: SmartBuffer, str: string, length: numbe
 }
 
 export function readStringFixed(buffer: SmartBuffer, length: number, encoding = 'gbk'): string {
-  return decode(buffer.readBuffer(length), encoding).replace(/\0/g, '').trim()
+  return decode(buffer.readBuffer(length), encoding).replace(/\0.*$/, '').trim()
 }
 
 export function writeString32(buffer: SmartBuffer, s: string, encoding = 'utf8'): Buffer {
@@ -20,7 +20,7 @@ export function writeString32(buffer: SmartBuffer, s: string, encoding = 'utf8')
 }
 
 export function readString32(buffer: SmartBuffer, encoding = 'gbk'): string {
-  return decode(buffer.readBuffer(buffer.readInt32LE()), encoding).replace(/\0/g, '').trim()
+  return decode(buffer.readBuffer(buffer.readInt32LE()), encoding).replace(/\0.*$/, '').trim()
 }
 
 export function writeString16(buffer: SmartBuffer, s: string, encoding = 'utf8'): Buffer {
@@ -31,5 +31,5 @@ export function writeString16(buffer: SmartBuffer, s: string, encoding = 'utf8')
 }
 
 export function readString16(buffer: SmartBuffer, encoding = 'gbk'): string {
-  return decode(buffer.readBuffer(buffer.readInt16LE()), encoding).replace(/\0/g, '').trim()
+  return decode(buffer.readBuffer(buffer.readInt16LE()), encoding).replace(/\0.*$/, '').trim()
 }
